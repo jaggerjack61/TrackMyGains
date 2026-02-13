@@ -5,7 +5,6 @@ import { StyleSheet, View } from 'react-native';
 import { DashboardCard } from '@/components/DashboardCard';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export default function HomeScreen() {
@@ -37,14 +36,14 @@ export default function HomeScreen() {
           />
         </View>
       }>
-      <ThemedView style={styles.titleContainer}>
+      <View style={styles.titleContainer}>
         <ThemedText type="title">Welcome back</ThemedText>
-      </ThemedView>
+      </View>
       <ThemedText style={[styles.subtitle, { color: mutedTextColor }]}>
         What would you like to track today?
       </ThemedText>
       
-      <ThemedView style={styles.gridContainer}>
+      <View style={styles.gridContainer}>
         <DashboardCard 
           title="Track Weight" 
           icon="scale-bathroom" 
@@ -65,7 +64,7 @@ export default function HomeScreen() {
           icon="needle" 
           onPress={() => router.push('/track-cycle')}
         />
-      </ThemedView>
+      </View>
     </ParallaxScrollView>
   );
 }

@@ -77,7 +77,80 @@ export const initDatabase = async () => {
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (daily_log_id) REFERENCES daily_logs (id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS cycles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          start_date TEXT NOT NULL,
+          end_date TEXT NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS compounds (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          type TEXT CHECK(type IN ('injectable', 'oral', 'peptide')) NOT NULL,
+          half_life_hours REAL NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS cycle_compounds (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cycle_id INTEGER NOT NULL,
+          compound_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          amount REAL NOT NULL,
+          amount_unit TEXT CHECK(amount_unit IN ('mg', 'iu', 'mcg')) NOT NULL,
+          dosing_period INTEGER NOT NULL,
+          start_date TEXT NOT NULL,
+          end_date TEXT NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (cycle_id) REFERENCES cycles (id) ON DELETE CASCADE,
+          FOREIGN KEY (compound_id) REFERENCES compounds (id) ON DELETE CASCADE
+        );
       `);
+
+      // Preload compounds if empty
+      const compoundsCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM compounds');
+      if (compoundsCount && compoundsCount.count === 0) {
+        const initialCompounds = [
+          // Injectables (Steroids)
+          { name: 'Testosterone Enanthate', type: 'injectable', half_life_hours: 108 }, // ~4.5 days
+          { name: 'Testosterone Cypionate', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          { name: 'Testosterone Propionate', type: 'injectable', half_life_hours: 19 }, // ~0.8 days
+          { name: 'Nandrolone Decanoate (Deca)', type: 'injectable', half_life_hours: 144 }, // ~6 days
+          { name: 'Nandrolone Phenylpropionate (NPP)', type: 'injectable', half_life_hours: 27 }, // ~1.1 days
+          { name: 'Trenbolone Acetate', type: 'injectable', half_life_hours: 24 }, // ~1 day
+          { name: 'Trenbolone Enanthate', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          { name: 'Boldenone Undecylenate (Equipoise)', type: 'injectable', half_life_hours: 336 }, // ~14 days
+          { name: 'Drostanolone Propionate (Masteron)', type: 'injectable', half_life_hours: 19 }, // ~0.8 days
+          { name: 'Drostanolone Enanthate (Masteron E)', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          { name: 'Methenolone Enanthate (Primobolan)', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          
+          // Orals (Steroids)
+          { name: 'Methandienone (Dianabol)', type: 'oral', half_life_hours: 4.5 },
+          { name: 'Oxandrolone (Anavar)', type: 'oral', half_life_hours: 9 },
+          { name: 'Stanozolol (Winstrol)', type: 'oral', half_life_hours: 9 },
+          { name: 'Oxymetholone (Anadrol)', type: 'oral', half_life_hours: 8.5 },
+          { name: 'Turinabol', type: 'oral', half_life_hours: 16 },
+
+          // Peptides
+          { name: 'HGH (Human Growth Hormone)', type: 'peptide', half_life_hours: 3 }, // Very short, active life varies
+          { name: 'BPC-157', type: 'peptide', half_life_hours: 4 },
+          { name: 'TB-500', type: 'peptide', half_life_hours: 24 }, // varies significantly
+          { name: 'Ipamorelin', type: 'peptide', half_life_hours: 2 },
+          { name: 'CJC-1295 (DAC)', type: 'peptide', half_life_hours: 144 }, // ~6 days
+          { name: 'CJC-1295 (No DAC)', type: 'peptide', half_life_hours: 0.5 },
+          { name: 'HCG', type: 'peptide', half_life_hours: 36 }, // ~1.5 days
+        ];
+
+        for (const compound of initialCompounds) {
+           await db.runAsync(
+             'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
+             compound.name,
+             compound.type,
+             compound.half_life_hours
+           );
+        }
+        console.log('Preloaded compounds data');
+      }
       
       // Migration to add sort_order if it doesn't exist (simplified check)
       try {
@@ -584,5 +657,174 @@ export const getRecentMeals = async (query: string) => {
   } catch (error) {
     console.error('Error getting recent meals:', error);
     return [];
+  }
+};
+
+// Cycles
+export const getCycles = async () => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    return await db.getAllAsync<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
+      'SELECT * FROM cycles ORDER BY start_date DESC'
+    );
+  } catch (error) {
+    console.error('Error getting cycles:', error);
+    return [];
+  }
+};
+
+export const getCycle = async (id: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    return await db.getFirstAsync<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
+      'SELECT * FROM cycles WHERE id = ?',
+      id
+    );
+  } catch (error) {
+    console.error('Error getting cycle:', error);
+    return null;
+  }
+};
+
+export const addCycle = async (name: string, startDate: string, endDate: string) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'INSERT INTO cycles (name, start_date, end_date) VALUES (?, ?, ?)',
+      name, startDate, endDate
+    );
+  } catch (error) {
+    console.error('Error adding cycle:', error);
+    throw error;
+  }
+};
+
+export const deleteCycle = async (id: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync('DELETE FROM cycles WHERE id = ?', id);
+  } catch (error) {
+    console.error('Error deleting cycle:', error);
+    throw error;
+  }
+};
+
+export const updateCycle = async (id: number, name: string, startDate: string, endDate: string) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'UPDATE cycles SET name = ?, start_date = ?, end_date = ? WHERE id = ?',
+      name, startDate, endDate, id
+    );
+  } catch (error) {
+    console.error('Error updating cycle:', error);
+    throw error;
+  }
+};
+
+// Compounds (Reference Data)
+export const getCompounds = async () => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    return await db.getAllAsync<{ id: number; name: string; type: 'injectable' | 'oral' | 'peptide'; half_life_hours: number; created_at: string }>(
+      'SELECT * FROM compounds ORDER BY name ASC'
+    );
+  } catch (error) {
+    console.error('Error getting compounds:', error);
+    return [];
+  }
+};
+
+export const addCompound = async (name: string, type: 'injectable' | 'oral' | 'peptide', halfLifeHours: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
+      name, type, halfLifeHours
+    );
+  } catch (error) {
+    console.error('Error adding compound:', error);
+    throw error;
+  }
+};
+
+// Cycle Compounds
+export const getCycleCompounds = async (cycleId: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    return await db.getAllAsync<{ id: number; cycle_id: number; compound_id: number; name: string; amount: number; amount_unit: 'mg' | 'iu' | 'mcg'; dosing_period: number; start_date: string; end_date: string; created_at: string; half_life_hours: number }>(
+      `SELECT cc.*, c.half_life_hours 
+       FROM cycle_compounds cc
+       JOIN compounds c ON cc.compound_id = c.id
+       WHERE cc.cycle_id = ? 
+       ORDER BY cc.start_date ASC`,
+      cycleId
+    );
+  } catch (error) {
+    console.error('Error getting cycle compounds:', error);
+    return [];
+  }
+};
+
+export const addCycleCompound = async (
+  cycleId: number, 
+  compoundId: number, 
+  name: string, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'INSERT INTO cycle_compounds (cycle_id, compound_id, name, amount, amount_unit, dosing_period, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      cycleId, compoundId, name, amount, amountUnit, dosingPeriod, startDate, endDate
+    );
+  } catch (error) {
+    console.error('Error adding cycle compound:', error);
+    throw error;
+  }
+};
+
+export const deleteCycleCompound = async (id: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync('DELETE FROM cycle_compounds WHERE id = ?', id);
+  } catch (error) {
+    console.error('Error deleting cycle compound:', error);
+    throw error;
+  }
+};
+
+export const updateCycleCompound = async (
+  id: number, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'UPDATE cycle_compounds SET amount = ?, amount_unit = ?, dosing_period = ?, start_date = ?, end_date = ? WHERE id = ?',
+      amount, amountUnit, dosingPeriod, startDate, endDate, id
+    );
+  } catch (error) {
+    console.error('Error updating cycle compound:', error);
+    throw error;
   }
 };

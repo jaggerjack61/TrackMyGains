@@ -63,7 +63,7 @@ export default function HomeScreen() {
         <DashboardCard 
           title="Track Cycle" 
           icon="needle" 
-          onPress={() => {}}
+          onPress={() => router.push('/track-cycle')}
         />
       </ThemedView>
     </ParallaxScrollView>

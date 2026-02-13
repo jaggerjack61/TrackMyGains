@@ -63,6 +63,36 @@ export interface Meal {
   created_at: string;
 }
 
+export interface Cycle {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+}
+
+export interface Compound {
+  id: number;
+  name: string;
+  type: 'injectable' | 'oral' | 'peptide';
+  half_life_hours: number;
+  created_at: string;
+}
+
+export interface CycleCompound {
+  id: number;
+  cycle_id: number;
+  compound_id: number;
+  name: string; // denormalized for easier access or custom names
+  amount: number;
+  amount_unit: 'mg' | 'iu' | 'mcg';
+  dosing_period: number; // in days, e.g., 7 for weekly
+  start_date: string;
+  end_date: string;
+  half_life_hours: number; // Joined from compounds
+  created_at: string;
+}
+
 export declare const initDatabase: () => Promise<void>;
 export declare const addWeight: (weight: number, date: string) => Promise<void>;
 export declare const getWeights: () => Promise<WeightRecord[]>;
@@ -98,6 +128,39 @@ export declare const updateExerciseLog: (id: number, date: string, weight: numbe
 export declare const getDiets: () => Promise<Diet[]>;
 export declare const addDiet: (name: string) => Promise<void>;
 export declare const deleteDiet: (id: number) => Promise<void>;
+
+// Cycles
+export declare const getCycles: () => Promise<Cycle[]>;
+export declare const getCycle: (id: number) => Promise<Cycle | null>;
+export declare const addCycle: (name: string, startDate: string, endDate: string) => Promise<void>;
+export declare const deleteCycle: (id: number) => Promise<void>;
+export declare const updateCycle: (id: number, name: string, startDate: string, endDate: string) => Promise<void>;
+
+// Compounds (Reference Data)
+export declare const getCompounds: () => Promise<Compound[]>;
+export declare const addCompound: (name: string, type: 'injectable' | 'oral' | 'peptide', halfLifeHours: number) => Promise<void>;
+
+// Cycle Compounds
+export declare const getCycleCompounds: (cycleId: number) => Promise<CycleCompound[]>;
+export declare const addCycleCompound: (
+  cycleId: number, 
+  compoundId: number, 
+  name: string, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => Promise<void>;
+export declare const deleteCycleCompound: (id: number) => Promise<void>;
+export declare const updateCycleCompound: (
+  id: number, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => Promise<void>;
 export declare const updateDietOrder: (diets: Diet[]) => Promise<void>;
 export declare const updateDiet: (id: number, name: string) => Promise<void>;
 

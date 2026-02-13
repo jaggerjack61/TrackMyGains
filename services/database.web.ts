@@ -400,3 +400,170 @@ export const getRecentMeals = async (query: string) => {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
 };
+
+// Cycles
+const WEB_STORAGE_KEY_CYCLES = 'trackmygains_cycles';
+const WEB_STORAGE_KEY_COMPOUNDS = 'trackmygains_compounds';
+const WEB_STORAGE_KEY_CYCLE_COMPOUNDS = 'trackmygains_cycle_compounds';
+
+export const getCycles = async () => {
+  return getWebData(WEB_STORAGE_KEY_CYCLES).sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+};
+
+export const getCycle = async (id: number) => {
+  const cycles = getWebData(WEB_STORAGE_KEY_CYCLES);
+  return cycles.find(c => c.id === id) || null;
+};
+
+export const addCycle = async (name: string, startDate: string, endDate: string) => {
+  const cycles = getWebData(WEB_STORAGE_KEY_CYCLES);
+  const newCycle = {
+    id: Date.now(),
+    name,
+    start_date: startDate,
+    end_date: endDate,
+    created_at: new Date().toISOString()
+  };
+  cycles.push(newCycle);
+  saveWebData(WEB_STORAGE_KEY_CYCLES, cycles);
+};
+
+export const deleteCycle = async (id: number) => {
+  const cycles = getWebData(WEB_STORAGE_KEY_CYCLES);
+  saveWebData(WEB_STORAGE_KEY_CYCLES, cycles.filter(c => c.id !== id));
+  
+  // Cascade delete cycle compounds
+  const cycleCompounds = getWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS);
+  saveWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS, cycleCompounds.filter(cc => cc.cycle_id !== id));
+};
+
+export const updateCycle = async (id: number, name: string, startDate: string, endDate: string) => {
+    const cycles = getWebData(WEB_STORAGE_KEY_CYCLES);
+    const cycle = cycles.find(c => c.id === id);
+    if (cycle) {
+        cycle.name = name;
+        cycle.start_date = startDate;
+        cycle.end_date = endDate;
+        saveWebData(WEB_STORAGE_KEY_CYCLES, cycles);
+    }
+};
+
+// Compounds
+export const getCompounds = async () => {
+    let compounds = getWebData(WEB_STORAGE_KEY_COMPOUNDS);
+    if (compounds.length === 0) {
+        // Preload default compounds
+        compounds = [
+          // Injectables (Steroids)
+          { id: 1, name: 'Testosterone Enanthate', type: 'injectable', half_life_hours: 108 }, 
+          { id: 2, name: 'Testosterone Cypionate', type: 'injectable', half_life_hours: 120 },
+          { id: 3, name: 'Testosterone Propionate', type: 'injectable', half_life_hours: 19 },
+          { id: 4, name: 'Nandrolone Decanoate (Deca)', type: 'injectable', half_life_hours: 144 },
+          { id: 5, name: 'Nandrolone Phenylpropionate (NPP)', type: 'injectable', half_life_hours: 27 },
+          { id: 6, name: 'Trenbolone Acetate', type: 'injectable', half_life_hours: 24 },
+          { id: 7, name: 'Trenbolone Enanthate', type: 'injectable', half_life_hours: 120 },
+          { id: 8, name: 'Boldenone Undecylenate (Equipoise)', type: 'injectable', half_life_hours: 336 },
+          { id: 9, name: 'Drostanolone Propionate (Masteron)', type: 'injectable', half_life_hours: 19 },
+          { id: 10, name: 'Drostanolone Enanthate (Masteron E)', type: 'injectable', half_life_hours: 120 },
+          { id: 11, name: 'Methenolone Enanthate (Primobolan)', type: 'injectable', half_life_hours: 120 },
+          
+          // Orals (Steroids)
+          { id: 12, name: 'Methandienone (Dianabol)', type: 'oral', half_life_hours: 4.5 },
+          { id: 13, name: 'Oxandrolone (Anavar)', type: 'oral', half_life_hours: 9 },
+          { id: 14, name: 'Stanozolol (Winstrol)', type: 'oral', half_life_hours: 9 },
+          { id: 15, name: 'Oxymetholone (Anadrol)', type: 'oral', half_life_hours: 8.5 },
+          { id: 16, name: 'Turinabol', type: 'oral', half_life_hours: 16 },
+
+          // Peptides
+          { id: 17, name: 'HGH (Human Growth Hormone)', type: 'peptide', half_life_hours: 3 },
+          { id: 18, name: 'BPC-157', type: 'peptide', half_life_hours: 4 },
+          { id: 19, name: 'TB-500', type: 'peptide', half_life_hours: 24 },
+          { id: 20, name: 'Ipamorelin', type: 'peptide', half_life_hours: 2 },
+          { id: 21, name: 'CJC-1295 (DAC)', type: 'peptide', half_life_hours: 144 },
+          { id: 22, name: 'CJC-1295 (No DAC)', type: 'peptide', half_life_hours: 0.5 },
+          { id: 23, name: 'HCG', type: 'peptide', half_life_hours: 36 },
+        ];
+        saveWebData(WEB_STORAGE_KEY_COMPOUNDS, compounds);
+    }
+    return compounds.sort((a, b) => a.name.localeCompare(b.name));
+};
+
+export const addCompound = async (name: string, type: 'injectable' | 'oral' | 'peptide', halfLifeHours: number) => {
+    const compounds = getWebData(WEB_STORAGE_KEY_COMPOUNDS);
+    const newCompound = {
+        id: Date.now(),
+        name,
+        type,
+        half_life_hours: halfLifeHours,
+        created_at: new Date().toISOString()
+    };
+    compounds.push(newCompound);
+    saveWebData(WEB_STORAGE_KEY_COMPOUNDS, compounds);
+};
+
+// Cycle Compounds
+export const getCycleCompounds = async (cycleId: number) => {
+    const cycleCompounds = getWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS);
+    const compounds = await getCompounds();
+    const compoundMap = new Map(compounds.map(c => [c.id, c]));
+    
+    return cycleCompounds
+        .filter(cc => cc.cycle_id === cycleId)
+        .map(cc => ({
+            ...cc,
+            half_life_hours: compoundMap.get(cc.compound_id)?.half_life_hours || 24
+        }))
+        .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+};
+
+export const addCycleCompound = async (
+  cycleId: number, 
+  compoundId: number, 
+  name: string, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => {
+    const cycleCompounds = getWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS);
+    const newCC = {
+        id: Date.now(),
+        cycle_id: cycleId,
+        compound_id: compoundId,
+        name,
+        amount,
+        amount_unit: amountUnit,
+        dosing_period: dosingPeriod,
+        start_date: startDate,
+        end_date: endDate,
+        created_at: new Date().toISOString()
+    };
+    cycleCompounds.push(newCC);
+    saveWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS, cycleCompounds);
+};
+
+export const deleteCycleCompound = async (id: number) => {
+    const cycleCompounds = getWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS);
+    saveWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS, cycleCompounds.filter(cc => cc.id !== id));
+};
+
+export const updateCycleCompound = async (
+  id: number, 
+  amount: number, 
+  amountUnit: 'mg' | 'iu' | 'mcg', 
+  dosingPeriod: number, 
+  startDate: string, 
+  endDate: string
+) => {
+    const cycleCompounds = getWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS);
+    const cc = cycleCompounds.find(c => c.id === id);
+    if (cc) {
+        cc.amount = amount;
+        cc.amount_unit = amountUnit;
+        cc.dosing_period = dosingPeriod;
+        cc.start_date = startDate;
+        cc.end_date = endDate;
+        saveWebData(WEB_STORAGE_KEY_CYCLE_COMPOUNDS, cycleCompounds);
+    }
+};

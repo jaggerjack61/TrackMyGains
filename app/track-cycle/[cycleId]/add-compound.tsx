@@ -1,8 +1,8 @@
 import { Header } from '@/components/Header';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { FlatList, Modal, Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Platform, SectionList, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -34,6 +34,21 @@ export default function AddCompoundScreen() {
   useEffect(() => {
     getCompounds().then(setCompounds);
   }, []);
+
+  const compoundSections = useMemo(() => {
+    const groupOrder: { type: Compound['type']; title: string }[] = [
+      { type: 'injectable', title: 'Injectables' },
+      { type: 'oral', title: 'Orals' },
+      { type: 'peptide', title: 'Peptides' },
+    ];
+
+    return groupOrder
+      .map(group => ({
+        title: group.title,
+        data: compounds.filter(c => c.type === group.type),
+      }))
+      .filter(section => section.data.length > 0);
+  }, [compounds]);
 
   const handleSave = async () => {
     if (!selectedCompound) {
@@ -208,10 +223,15 @@ export default function AddCompoundScreen() {
                 <MaterialCommunityIcons name="close" size={24} color={textColor} />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={compounds}
+            <SectionList
+              sections={compoundSections}
               renderItem={renderCompoundItem}
               keyExtractor={(item) => item.id.toString()}
+              renderSectionHeader={({ section }) => (
+                <ThemedText type="subtitle" style={[styles.groupHeader, { color: textColor }]}>
+                  {section.title}
+                </ThemedText>
+              )}
             />
           </View>
         </View>
@@ -306,5 +326,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#ccc',
+  },
+  groupHeader: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    opacity: 0.9,
   },
 });

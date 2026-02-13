@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Dimensions, FlatList, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Pressable, ScrollView, SectionList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 import { ThemedText } from '@/components/themed-text';
@@ -18,27 +18,27 @@ export default function CycleDetailScreen() {
   const { cycleId } = useLocalSearchParams();
   const [cycle, setCycle] = useState<Cycle | null>(null);
   const [compounds, setCompounds] = useState<CycleCompound[]>([]);
+  const [levelFactor, setLevelFactor] = useState(0.5);
   const router = useRouter();
   
   const primaryColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
-  const iconColor = useThemeColor({}, 'icon');
   const mutedColor = useThemeColor({}, 'tabIconDefault');
   const cardColor = useThemeColor({}, 'card');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (cycleId) {
       const cycleData = await getCycle(Number(cycleId));
       setCycle(cycleData);
       const compoundsData = await getCycleCompounds(Number(cycleId));
       setCompounds(compoundsData);
     }
-  };
+  }, [cycleId]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [cycleId])
+      void loadData();
+    }, [loadData])
   );
 
   const chartData = useMemo(() => {
@@ -64,7 +64,7 @@ export default function CycleDetailScreen() {
       });
 
     const datasets = series.map(s => ({
-      data: s.data.map(d => d.value),
+      data: s.data.map(d => d.value * levelFactor),
       color: (opacity = 1) => s.color, // calculateCycleLevels returns rgba string, but chart kit expects function or specific color. 
       // calculateCycleLevels returns specific color string actually? No, it returns a string.
       // Wait, chart-kit dataset color property is optional, if provided it overrides base color.
@@ -84,7 +84,22 @@ export default function CycleDetailScreen() {
       legend
     };
 
-  }, [cycle, compounds]);
+  }, [cycle, compounds, levelFactor]);
+
+  const compoundSections = useMemo(() => {
+    const groupOrder: { type: CycleCompound['type']; title: string }[] = [
+      { type: 'injectable', title: 'Injectables' },
+      { type: 'oral', title: 'Orals' },
+      { type: 'peptide', title: 'Peptides' },
+    ];
+
+    return groupOrder
+      .map(group => ({
+        title: group.title,
+        data: compounds.filter(c => c.type === group.type),
+      }))
+      .filter(section => section.data.length > 0);
+  }, [compounds]);
 
   const handleDeleteCompound = async (id: number) => {
     await deleteCycleCompound(id);
@@ -115,7 +130,7 @@ export default function CycleDetailScreen() {
   );
   
   const renderHeader = () => (
-     <View>
+     !cycle ? null : <View>
         <View style={styles.dateContainer}>
            <ThemedText style={{ color: mutedColor, textAlign: 'center' }}>
              {new Date(cycle.start_date).toLocaleDateString()} - {new Date(cycle.end_date).toLocaleDateString()}
@@ -125,7 +140,33 @@ export default function CycleDetailScreen() {
         <View style={styles.sectionHeader}>
            {chartData && (
             <View style={[styles.chartContainer, { backgroundColor: cardColor }]}>
-              <ThemedText type="subtitle" style={styles.chartTitle}>Estimated Blood Levels</ThemedText>
+              <ThemedText type="subtitle" style={styles.chartTitle}>Estimated Blood Levels (ng/dL)</ThemedText>
+              <View style={styles.factorRow}>
+                <ThemedText style={[styles.factorLabel, { color: mutedColor }]}>
+                  Level factor: {levelFactor.toFixed(2)}
+                </ThemedText>
+                <View style={styles.factorButtons}>
+                  {[0.25, 0.5, 0.75, 1].map(f => {
+                    const isActive = f === levelFactor;
+                    return (
+                      <TouchableOpacity
+                        key={f}
+                        onPress={() => setLevelFactor(f)}
+                        style={[
+                          styles.factorButton,
+                          { borderColor: primaryColor },
+                          isActive && { backgroundColor: primaryColor },
+                        ]}
+                      >
+                        <ThemedText style={[styles.factorButtonText, isActive && styles.factorButtonTextActive]}>
+                          {f}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              <ThemedText style={[styles.yAxisLabel, { color: mutedColor }]}>ng/dL</ThemedText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <LineChart
                   data={chartData}
@@ -160,6 +201,7 @@ export default function CycleDetailScreen() {
                   withVerticalLines={false}
                 />
               </ScrollView>
+              <ThemedText style={[styles.axisLabel, { color: mutedColor }]}>Date (D/M)</ThemedText>
             </View>
           )}
         </View>
@@ -184,12 +226,17 @@ export default function CycleDetailScreen() {
     <ThemedView style={styles.container}>
       <Header title={cycle.name} showBack />
 
-      <FlatList
-        data={compounds}
+      <SectionList
+        sections={compoundSections}
         renderItem={renderCompound}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={renderHeader}
+        renderSectionHeader={({ section }) => (
+          <ThemedText type="subtitle" style={[styles.groupHeader, { color: mutedColor }]}>
+            {section.title}
+          </ThemedText>
+        )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <ThemedText>No compounds added yet.</ThemedText>
@@ -242,6 +289,46 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  factorRow: {
+    gap: 10,
+    marginBottom: 8,
+  },
+  factorLabel: {
+    fontSize: 12,
+    opacity: 0.9,
+    textAlign: 'center',
+  },
+  factorButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  factorButton: {
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  factorButtonText: {
+    fontSize: 12,
+  },
+  factorButtonTextActive: {
+    color: '#FFF',
+  },
+  yAxisLabel: {
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 2,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+    opacity: 0.9,
+  },
+  axisLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+    opacity: 0.9,
+  },
   card: {
     padding: 16,
     borderRadius: 12,
@@ -285,5 +372,11 @@ const styles = StyleSheet.create({
   emptyContainer: {
     padding: 32,
     alignItems: 'center',
+  },
+  groupHeader: {
+    marginBottom: 8,
+    marginTop: 4,
+    paddingHorizontal: 4,
+    opacity: 0.9,
   },
 });

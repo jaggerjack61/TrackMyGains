@@ -84,6 +84,7 @@ export interface CycleCompound {
   cycle_id: number;
   compound_id: number;
   name: string; // denormalized for easier access or custom names
+  type: 'injectable' | 'oral' | 'peptide';
   amount: number;
   amount_unit: 'mg' | 'iu' | 'mcg';
   dosing_period: number; // in days, e.g., 7 for weekly

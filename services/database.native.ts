@@ -107,22 +107,30 @@ export const initDatabase = async () => {
         );
       `);
 
-      // Preload compounds if empty
-      const compoundsCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM compounds');
-      if (compoundsCount && compoundsCount.count === 0) {
-        const initialCompounds = [
+      const defaultCompounds = [
           // Injectables (Steroids)
           { name: 'Testosterone Enanthate', type: 'injectable', half_life_hours: 108 }, // ~4.5 days
           { name: 'Testosterone Cypionate', type: 'injectable', half_life_hours: 120 }, // ~5 days
           { name: 'Testosterone Propionate', type: 'injectable', half_life_hours: 19 }, // ~0.8 days
+          { name: 'Testosterone Phenylpropionate', type: 'injectable', half_life_hours: 72 },
+          { name: 'Testosterone Isocaproate', type: 'injectable', half_life_hours: 216 },
+          { name: 'Testosterone Decanoate', type: 'injectable', half_life_hours: 312 },
+          { name: 'Testosterone Undecanoate', type: 'injectable', half_life_hours: 480 },
+          { name: 'Sustanon (Testosterone Blend)', type: 'injectable', half_life_hours: 168 },
+          { name: 'Testosterone Suspension', type: 'injectable', half_life_hours: 1 },
           { name: 'Nandrolone Decanoate (Deca)', type: 'injectable', half_life_hours: 144 }, // ~6 days
           { name: 'Nandrolone Phenylpropionate (NPP)', type: 'injectable', half_life_hours: 27 }, // ~1.1 days
+          { name: 'Nandrolone Undecanoate', type: 'injectable', half_life_hours: 360 },
           { name: 'Trenbolone Acetate', type: 'injectable', half_life_hours: 24 }, // ~1 day
           { name: 'Trenbolone Enanthate', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          { name: 'Trenbolone Hexahydrobenzylcarbonate (Parabolan)', type: 'injectable', half_life_hours: 168 },
           { name: 'Boldenone Undecylenate (Equipoise)', type: 'injectable', half_life_hours: 336 }, // ~14 days
+          { name: 'Boldenone Cypionate', type: 'injectable', half_life_hours: 192 },
           { name: 'Drostanolone Propionate (Masteron)', type: 'injectable', half_life_hours: 19 }, // ~0.8 days
           { name: 'Drostanolone Enanthate (Masteron E)', type: 'injectable', half_life_hours: 120 }, // ~5 days
           { name: 'Methenolone Enanthate (Primobolan)', type: 'injectable', half_life_hours: 120 }, // ~5 days
+          { name: 'Methenolone Acetate (Primobolan)', type: 'injectable', half_life_hours: 48 },
+          { name: 'Stanozolol (Injectable)', type: 'injectable', half_life_hours: 24 },
           
           // Orals (Steroids)
           { name: 'Methandienone (Dianabol)', type: 'oral', half_life_hours: 4.5 },
@@ -130,6 +138,10 @@ export const initDatabase = async () => {
           { name: 'Stanozolol (Winstrol)', type: 'oral', half_life_hours: 9 },
           { name: 'Oxymetholone (Anadrol)', type: 'oral', half_life_hours: 8.5 },
           { name: 'Turinabol', type: 'oral', half_life_hours: 16 },
+          { name: 'Methenolone Acetate (Primobolan Oral)', type: 'oral', half_life_hours: 6 },
+          { name: 'Mesterolone (Proviron)', type: 'oral', half_life_hours: 12 },
+          { name: 'Fluoxymesterone (Halotestin)', type: 'oral', half_life_hours: 9 },
+          { name: 'Methyldrostanolone (Superdrol)', type: 'oral', half_life_hours: 8 },
 
           // Peptides
           { name: 'HGH (Human Growth Hormone)', type: 'peptide', half_life_hours: 3 }, // Very short, active life varies
@@ -139,17 +151,47 @@ export const initDatabase = async () => {
           { name: 'CJC-1295 (DAC)', type: 'peptide', half_life_hours: 144 }, // ~6 days
           { name: 'CJC-1295 (No DAC)', type: 'peptide', half_life_hours: 0.5 },
           { name: 'HCG', type: 'peptide', half_life_hours: 36 }, // ~1.5 days
-        ];
+          { name: 'Semaglutide', type: 'peptide', half_life_hours: 168 },
+          { name: 'Tirzepatide', type: 'peptide', half_life_hours: 120 },
+          { name: 'Liraglutide', type: 'peptide', half_life_hours: 13 },
+          { name: 'Tesamorelin', type: 'peptide', half_life_hours: 2 },
+          { name: 'Sermorelin', type: 'peptide', half_life_hours: 0.5 },
+          { name: 'GHRP-2', type: 'peptide', half_life_hours: 0.5 },
+          { name: 'GHRP-6', type: 'peptide', half_life_hours: 0.5 },
+          { name: 'Hexarelin', type: 'peptide', half_life_hours: 0.5 },
+          { name: 'IGF-1 LR3', type: 'peptide', half_life_hours: 20 },
+          { name: 'Melanotan II', type: 'peptide', half_life_hours: 36 },
+          { name: 'PT-141 (Bremelanotide)', type: 'peptide', half_life_hours: 12 },
+          { name: 'Thymosin Alpha-1', type: 'peptide', half_life_hours: 2 },
+          { name: 'Epitalon', type: 'peptide', half_life_hours: 1 },
+          { name: 'AOD-9604', type: 'peptide', half_life_hours: 8 },
+      ];
 
-        for (const compound of initialCompounds) {
-           await db.runAsync(
-             'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
-             compound.name,
-             compound.type,
-             compound.half_life_hours
-           );
+      // Preload compounds if empty
+      const compoundsCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM compounds');
+      if (compoundsCount && compoundsCount.count === 0) {
+        for (const compound of defaultCompounds) {
+          await db.runAsync(
+            'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
+            compound.name,
+            compound.type,
+            compound.half_life_hours
+          );
         }
         console.log('Preloaded compounds data');
+      } else {
+        const existing = await db.getAllAsync<{ name: string }>('SELECT name FROM compounds');
+        const existingNames = new Set(existing.map(r => r.name));
+
+        for (const compound of defaultCompounds) {
+          if (existingNames.has(compound.name)) continue;
+          await db.runAsync(
+            'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
+            compound.name,
+            compound.type,
+            compound.half_life_hours
+          );
+        }
       }
       
       // Migration to add sort_order if it doesn't exist (simplified check)
@@ -182,66 +224,98 @@ export const initDatabase = async () => {
   await initPromise;
 };
 
-export const addWeight = async (weight: number, date: string) => {
+const requireDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
+  if (!db) await initDatabase();
+  if (!db) throw new Error('Database not initialized');
+  return db;
+};
+
+const queryAll = async <T>(errorMessage: string, sql: string, ...params: any[]): Promise<T[]> => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('INSERT INTO weights (weight, date) VALUES (?, ?)', weight, date);
+    const database = await requireDatabase();
+    return await database.getAllAsync<T>(sql, ...params);
   } catch (error) {
-    console.error('Error adding weight:', error);
+    console.error(errorMessage, error);
+    return [];
+  }
+};
+
+const queryFirst = async <T>(errorMessage: string, sql: string, ...params: any[]): Promise<T | null> => {
+  try {
+    const database = await requireDatabase();
+    return await database.getFirstAsync<T>(sql, ...params);
+  } catch (error) {
+    console.error(errorMessage, error);
+    return null;
+  }
+};
+
+const execute = async (errorMessage: string, sql: string, ...params: any[]) => {
+  try {
+    const database = await requireDatabase();
+    await database.runAsync(sql, ...params);
+  } catch (error) {
+    console.error(errorMessage, error);
     throw error;
   }
 };
 
-export const getWeights = async () => {
+const executeReturningId = async (errorMessage: string, sql: string, ...params: any[]): Promise<number> => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    const result = await db.getAllAsync<{ id: number; weight: number; date: string }>(
-      'SELECT * FROM weights ORDER BY date DESC'
-    );
-    return result;
+    const database = await requireDatabase();
+    const result = await database.runAsync(sql, ...params);
+    return result.lastInsertRowId;
   } catch (error) {
-    console.error('Error getting weights:', error);
-    return [];
+    console.error(errorMessage, error);
+    throw error;
   }
 };
 
-export const deleteWeight = async (id: number) => {
-    try {
-        if (!db) await initDatabase();
-        if (!db) throw new Error('Database not initialized');
-        await db.runAsync('DELETE FROM weights WHERE id = ?', id);
-    } catch (error) {
-        console.error('Error deleting weight:', error);
-        throw error;
-    }
-}
-
-// Routines
-export const getRoutines = async () => {
+const executeTransaction = async (
+  errorMessage: string,
+  fn: (database: SQLite.SQLiteDatabase) => Promise<void>
+) => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; name: string; created_at: string; sort_order: number }>(
-      'SELECT * FROM routines ORDER BY sort_order ASC, created_at DESC'
-    );
+    const database = await requireDatabase();
+    await database.withTransactionAsync(async () => {
+      await fn(database);
+    });
   } catch (error) {
-    console.error('Error getting routines:', error);
-    return [];
+    console.error(errorMessage, error);
+    throw error;
   }
+};
+
+export const addWeight = async (weight: number, date: string) => {
+  await execute('Error adding weight:', 'INSERT INTO weights (weight, date) VALUES (?, ?)', weight, date);
+};
+
+export const getWeights = async () => {
+  return await queryAll<{ id: number; weight: number; date: string }>(
+    'Error getting weights:',
+    'SELECT * FROM weights ORDER BY date DESC'
+  );
+};
+
+export const deleteWeight = async (id: number) => {
+  await execute('Error deleting weight:', 'DELETE FROM weights WHERE id = ?', id);
+};
+
+export const getRoutines = async () => {
+  return await queryAll<{ id: number; name: string; created_at: string; sort_order: number }>(
+    'Error getting routines:',
+    'SELECT * FROM routines ORDER BY sort_order ASC, created_at DESC'
+  );
 };
 
 export const addRoutine = async (name: string) => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    
-    // Get max sort order
-    const result = await db.getFirstAsync<{ max_order: number }>('SELECT MAX(sort_order) as max_order FROM routines');
+    const database = await requireDatabase();
+    const result = await database.getFirstAsync<{ max_order: number }>(
+      'SELECT MAX(sort_order) as max_order FROM routines'
+    );
     const nextOrder = (result?.max_order ?? 0) + 1;
-
-    await db.runAsync('INSERT INTO routines (name, sort_order) VALUES (?, ?)', name, nextOrder);
+    await database.runAsync('INSERT INTO routines (name, sort_order) VALUES (?, ?)', name, nextOrder);
   } catch (error) {
     console.error('Error adding routine:', error);
     throw error;
@@ -249,72 +323,47 @@ export const addRoutine = async (name: string) => {
 };
 
 export const deleteRoutine = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM routines WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting routine:', error);
-    throw error;
-  }
+  await execute('Error deleting routine:', 'DELETE FROM routines WHERE id = ?', id);
 };
 
 export const updateRoutineOrder = async (routines: { id: number; sort_order: number }[]) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    
-    await db.withTransactionAsync(async () => {
-        for (let i = 0; i < routines.length; i++) {
-            const routine = routines[i];
-            // We use the index as the new sort order to ensure it matches the UI
-            await db!.runAsync('UPDATE routines SET sort_order = ? WHERE id = ?', i, routine.id);
-        }
-    });
-  } catch (error) {
-    console.error('Error updating routine order:', error);
-    throw error;
-  }
+  await executeTransaction('Error updating routine order:', async database => {
+    for (let i = 0; i < routines.length; i++) {
+      const routine = routines[i];
+      await database.runAsync('UPDATE routines SET sort_order = ? WHERE id = ?', i, routine.id);
+    }
+  });
 };
 
 export const updateRoutine = async (id: number, name: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('UPDATE routines SET name = ? WHERE id = ?', name, id);
-  } catch (error) {
-    console.error('Error updating routine:', error);
-    throw error;
-  }
+  await execute('Error updating routine:', 'UPDATE routines SET name = ? WHERE id = ?', name, id);
 };
 
 
-// Workouts
 export const getWorkouts = async (routineId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; routine_id: number; name: string; date: string; created_at: string; sort_order: number }>(
-      'SELECT * FROM workouts WHERE routine_id = ? ORDER BY sort_order ASC, created_at DESC',
-      routineId
-    );
-  } catch (error) {
-    console.error('Error getting workouts:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; routine_id: number; name: string; date: string; created_at: string; sort_order: number }>(
+    'Error getting workouts:',
+    'SELECT * FROM workouts WHERE routine_id = ? ORDER BY sort_order ASC, created_at DESC',
+    routineId
+  );
 };
 
 export const addWorkout = async (routineId: number, name: string) => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
+    const database = await requireDatabase();
     const date = new Date().toISOString();
-
-    // Get max sort order
-    const result = await db.getFirstAsync<{ max_order: number }>('SELECT MAX(sort_order) as max_order FROM workouts WHERE routine_id = ?', routineId);
+    const result = await database.getFirstAsync<{ max_order: number }>(
+      'SELECT MAX(sort_order) as max_order FROM workouts WHERE routine_id = ?',
+      routineId
+    );
     const nextOrder = (result?.max_order ?? 0) + 1;
-
-    await db.runAsync('INSERT INTO workouts (routine_id, name, date, sort_order) VALUES (?, ?, ?, ?)', routineId, name, date, nextOrder);
+    await database.runAsync(
+      'INSERT INTO workouts (routine_id, name, date, sort_order) VALUES (?, ?, ?, ?)',
+      routineId,
+      name,
+      date,
+      nextOrder
+    );
   } catch (error) {
     console.error('Error adding workout:', error);
     throw error;
@@ -322,170 +371,100 @@ export const addWorkout = async (routineId: number, name: string) => {
 };
 
 export const deleteWorkout = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM workouts WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting workout:', error);
-    throw error;
-  }
+  await execute('Error deleting workout:', 'DELETE FROM workouts WHERE id = ?', id);
 };
 
 export const updateWorkoutOrder = async (workouts: { id: number; sort_order: number }[]) => {
-    try {
-      if (!db) await initDatabase();
-      if (!db) throw new Error('Database not initialized');
-      
-      await db.withTransactionAsync(async () => {
-          for (let i = 0; i < workouts.length; i++) {
-              const workout = workouts[i];
-              await db!.runAsync('UPDATE workouts SET sort_order = ? WHERE id = ?', i, workout.id);
-          }
-      });
-    } catch (error) {
-      console.error('Error updating workout order:', error);
-      throw error;
+  await executeTransaction('Error updating workout order:', async database => {
+    for (let i = 0; i < workouts.length; i++) {
+      const workout = workouts[i];
+      await database.runAsync('UPDATE workouts SET sort_order = ? WHERE id = ?', i, workout.id);
     }
-  };
-
-export const updateWorkout = async (id: number, name: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('UPDATE workouts SET name = ? WHERE id = ?', name, id);
-  } catch (error) {
-    console.error('Error updating workout:', error);
-    throw error;
-  }
+  });
 };
 
-// Exercises
+export const updateWorkout = async (id: number, name: string) => {
+  await execute('Error updating workout:', 'UPDATE workouts SET name = ? WHERE id = ?', name, id);
+};
+
 export const getExercises = async (workoutId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; workout_id: number; name: string; created_at: string }>(
-      'SELECT * FROM exercises WHERE workout_id = ? ORDER BY created_at ASC',
-      workoutId
-    );
-  } catch (error) {
-    console.error('Error getting exercises:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; workout_id: number; name: string; created_at: string }>(
+    'Error getting exercises:',
+    'SELECT * FROM exercises WHERE workout_id = ? ORDER BY created_at ASC',
+    workoutId
+  );
 };
 
 export const addExercise = async (workoutId: number, name: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('INSERT INTO exercises (workout_id, name) VALUES (?, ?)', workoutId, name);
-  } catch (error) {
-    console.error('Error adding exercise:', error);
-    throw error;
-  }
+  await execute('Error adding exercise:', 'INSERT INTO exercises (workout_id, name) VALUES (?, ?)', workoutId, name);
 };
 
 export const deleteExercise = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM exercises WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting exercise:', error);
-    throw error;
-  }
+  await execute('Error deleting exercise:', 'DELETE FROM exercises WHERE id = ?', id);
 };
 
 export const updateExercise = async (id: number, name: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('UPDATE exercises SET name = ? WHERE id = ?', name, id);
-  } catch (error) {
-    console.error('Error updating exercise:', error);
-    throw error;
-  }
+  await execute('Error updating exercise:', 'UPDATE exercises SET name = ? WHERE id = ?', name, id);
 };
 
-// Exercise Logs
 export const getExerciseLogs = async (exerciseId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; exercise_id: number; date: string; weight: number; weight_unit: 'kg' | 'lbs'; reps: number; sets: number; created_at: string }>(
-      'SELECT * FROM exercise_logs WHERE exercise_id = ? ORDER BY date DESC, created_at DESC',
-      exerciseId
-    );
-  } catch (error) {
-    console.error('Error getting exercise logs:', error);
-    return [];
-  }
+  return await queryAll<{
+    id: number;
+    exercise_id: number;
+    date: string;
+    weight: number;
+    weight_unit: 'kg' | 'lbs';
+    reps: number;
+    sets: number;
+    created_at: string;
+  }>('Error getting exercise logs:', 'SELECT * FROM exercise_logs WHERE exercise_id = ? ORDER BY date DESC, created_at DESC', exerciseId);
 };
 
 export const addExerciseLog = async (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'INSERT INTO exercise_logs (exercise_id, date, weight, weight_unit, reps, sets) VALUES (?, ?, ?, ?, ?, ?)',
-      exerciseId, date, weight, weightUnit, reps, sets
-    );
-  } catch (error) {
-    console.error('Error adding exercise log:', error);
-    throw error;
-  }
+  await execute(
+    'Error adding exercise log:',
+    'INSERT INTO exercise_logs (exercise_id, date, weight, weight_unit, reps, sets) VALUES (?, ?, ?, ?, ?, ?)',
+    exerciseId,
+    date,
+    weight,
+    weightUnit,
+    reps,
+    sets
+  );
 };
 
 export const deleteExerciseLog = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM exercise_logs WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting exercise log:', error);
-    throw error;
-  }
+  await execute('Error deleting exercise log:', 'DELETE FROM exercise_logs WHERE id = ?', id);
 };
 
 export const updateExerciseLog = async (id: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'UPDATE exercise_logs SET date = ?, weight = ?, weight_unit = ?, reps = ?, sets = ? WHERE id = ?',
-      date, weight, weightUnit, reps, sets, id
-    );
-  } catch (error) {
-    console.error('Error updating exercise log:', error);
-    throw error;
-  }
+  await execute(
+    'Error updating exercise log:',
+    'UPDATE exercise_logs SET date = ?, weight = ?, weight_unit = ?, reps = ?, sets = ? WHERE id = ?',
+    date,
+    weight,
+    weightUnit,
+    reps,
+    sets,
+    id
+  );
 };
 
-// Diets
 export const getDiets = async () => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; name: string; created_at: string; sort_order: number }>(
-      'SELECT * FROM diets ORDER BY sort_order ASC, created_at DESC'
-    );
-  } catch (error) {
-    console.error('Error getting diets:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; name: string; created_at: string; sort_order: number }>(
+    'Error getting diets:',
+    'SELECT * FROM diets ORDER BY sort_order ASC, created_at DESC'
+  );
 };
 
 export const addDiet = async (name: string) => {
   try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    
-    // Get max sort order
-    const result = await db.getFirstAsync<{ max_order: number }>('SELECT MAX(sort_order) as max_order FROM diets');
+    const database = await requireDatabase();
+    const result = await database.getFirstAsync<{ max_order: number }>(
+      'SELECT MAX(sort_order) as max_order FROM diets'
+    );
     const nextOrder = (result?.max_order ?? 0) + 1;
-
-    await db.runAsync('INSERT INTO diets (name, sort_order) VALUES (?, ?)', name, nextOrder);
+    await database.runAsync('INSERT INTO diets (name, sort_order) VALUES (?, ?)', name, nextOrder);
   } catch (error) {
     console.error('Error adding diet:', error);
     throw error;
@@ -493,285 +472,200 @@ export const addDiet = async (name: string) => {
 };
 
 export const deleteDiet = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM diets WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting diet:', error);
-    throw error;
-  }
+  await execute('Error deleting diet:', 'DELETE FROM diets WHERE id = ?', id);
 };
 
 export const updateDietOrder = async (diets: { id: number; sort_order: number }[]) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    
-    await db.withTransactionAsync(async () => {
-        for (let i = 0; i < diets.length; i++) {
-            const diet = diets[i];
-            await db!.runAsync('UPDATE diets SET sort_order = ? WHERE id = ?', i, diet.id);
-        }
-    });
-  } catch (error) {
-    console.error('Error updating diet order:', error);
-    throw error;
-  }
+  await executeTransaction('Error updating diet order:', async database => {
+    for (let i = 0; i < diets.length; i++) {
+      const diet = diets[i];
+      await database.runAsync('UPDATE diets SET sort_order = ? WHERE id = ?', i, diet.id);
+    }
+  });
 };
 
 export const updateDiet = async (id: number, name: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('UPDATE diets SET name = ? WHERE id = ?', name, id);
-  } catch (error) {
-    console.error('Error updating diet:', error);
-    throw error;
-  }
+  await execute('Error updating diet:', 'UPDATE diets SET name = ? WHERE id = ?', name, id);
 };
 
-// Daily Logs
 export const getDailyLogs = async (dietId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; diet_id: number; date: string; created_at: string }>(
-      'SELECT * FROM daily_logs WHERE diet_id = ? ORDER BY date DESC',
-      dietId
-    );
-  } catch (error) {
-    console.error('Error getting daily logs:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; diet_id: number; date: string; created_at: string }>(
+    'Error getting daily logs:',
+    'SELECT * FROM daily_logs WHERE diet_id = ? ORDER BY date DESC',
+    dietId
+  );
 };
 
 export const getDailyLogByDate = async (dietId: number, date: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getFirstAsync<{ id: number; diet_id: number; date: string; created_at: string }>(
-      'SELECT * FROM daily_logs WHERE diet_id = ? AND date = ?',
-      dietId, date
-    );
-  } catch (error) {
-    console.error('Error getting daily log by date:', error);
-    return null;
-  }
+  return await queryFirst<{ id: number; diet_id: number; date: string; created_at: string }>(
+    'Error getting daily log by date:',
+    'SELECT * FROM daily_logs WHERE diet_id = ? AND date = ?',
+    dietId,
+    date
+  );
 };
 
 export const addDailyLog = async (dietId: number, date: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    const result = await db.runAsync('INSERT INTO daily_logs (diet_id, date) VALUES (?, ?)', dietId, date);
-    return result.lastInsertRowId;
-  } catch (error) {
-    console.error('Error adding daily log:', error);
-    throw error;
-  }
+  return await executeReturningId(
+    'Error adding daily log:',
+    'INSERT INTO daily_logs (diet_id, date) VALUES (?, ?)',
+    dietId,
+    date
+  );
 };
 
 export const deleteDailyLog = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM daily_logs WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting daily log:', error);
-    throw error;
-  }
+  await execute('Error deleting daily log:', 'DELETE FROM daily_logs WHERE id = ?', id);
 };
 
-// Meals
 export const getMeals = async (dailyLogId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; daily_log_id: number; name: string; calories: number; protein: number; carbs: number; fats: number; created_at: string }>(
-      'SELECT * FROM meals WHERE daily_log_id = ? ORDER BY created_at ASC',
-      dailyLogId
-    );
-  } catch (error) {
-    console.error('Error getting meals:', error);
-    return [];
-  }
+  return await queryAll<{
+    id: number;
+    daily_log_id: number;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    created_at: string;
+  }>('Error getting meals:', 'SELECT * FROM meals WHERE daily_log_id = ? ORDER BY created_at ASC', dailyLogId);
 };
 
 export const addMeal = async (dailyLogId: number, name: string, calories: number, protein: number, carbs: number, fats: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'INSERT INTO meals (daily_log_id, name, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?)',
-      dailyLogId, name, calories, protein, carbs, fats
-    );
-  } catch (error) {
-    console.error('Error adding meal:', error);
-    throw error;
-  }
+  await execute(
+    'Error adding meal:',
+    'INSERT INTO meals (daily_log_id, name, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?)',
+    dailyLogId,
+    name,
+    calories,
+    protein,
+    carbs,
+    fats
+  );
 };
 
 export const deleteMeal = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM meals WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting meal:', error);
-    throw error;
-  }
+  await execute('Error deleting meal:', 'DELETE FROM meals WHERE id = ?', id);
 };
 
 export const updateMeal = async (id: number, name: string, calories: number, protein: number, carbs: number, fats: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'UPDATE meals SET name = ?, calories = ?, protein = ?, carbs = ?, fats = ? WHERE id = ?',
-      name, calories, protein, carbs, fats, id
-    );
-  } catch (error) {
-    console.error('Error updating meal:', error);
-    throw error;
-  }
+  await execute(
+    'Error updating meal:',
+    'UPDATE meals SET name = ?, calories = ?, protein = ?, carbs = ?, fats = ? WHERE id = ?',
+    name,
+    calories,
+    protein,
+    carbs,
+    fats,
+    id
+  );
 };
 
 export const getRecentMeals = async (query: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    // Use a subquery to ensure we get the most recent meal details for each unique name
-    return await db.getAllAsync<{ id: number; daily_log_id: number; name: string; calories: number; protein: number; carbs: number; fats: number; created_at: string }>(
-      `SELECT * FROM meals 
-       WHERE id IN (
-         SELECT MAX(id) 
-         FROM meals 
-         WHERE name LIKE ? 
-         GROUP BY name
-       ) 
-       ORDER BY created_at DESC 
-       LIMIT 5`,
-      `%${query}%`
-    );
-  } catch (error) {
-    console.error('Error getting recent meals:', error);
-    return [];
-  }
+  return await queryAll<{
+    id: number;
+    daily_log_id: number;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    created_at: string;
+  }>(
+    'Error getting recent meals:',
+    `SELECT * FROM meals 
+     WHERE id IN (
+       SELECT MAX(id) 
+       FROM meals 
+       WHERE name LIKE ? 
+       GROUP BY name
+     ) 
+     ORDER BY created_at DESC 
+     LIMIT 5`,
+    `%${query}%`
+  );
 };
 
-// Cycles
 export const getCycles = async () => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
-      'SELECT * FROM cycles ORDER BY start_date DESC'
-    );
-  } catch (error) {
-    console.error('Error getting cycles:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
+    'Error getting cycles:',
+    'SELECT * FROM cycles ORDER BY start_date DESC'
+  );
 };
 
 export const getCycle = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getFirstAsync<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
-      'SELECT * FROM cycles WHERE id = ?',
-      id
-    );
-  } catch (error) {
-    console.error('Error getting cycle:', error);
-    return null;
-  }
+  return await queryFirst<{ id: number; name: string; start_date: string; end_date: string; created_at: string }>(
+    'Error getting cycle:',
+    'SELECT * FROM cycles WHERE id = ?',
+    id
+  );
 };
 
 export const addCycle = async (name: string, startDate: string, endDate: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'INSERT INTO cycles (name, start_date, end_date) VALUES (?, ?, ?)',
-      name, startDate, endDate
-    );
-  } catch (error) {
-    console.error('Error adding cycle:', error);
-    throw error;
-  }
+  await execute(
+    'Error adding cycle:',
+    'INSERT INTO cycles (name, start_date, end_date) VALUES (?, ?, ?)',
+    name,
+    startDate,
+    endDate
+  );
 };
 
 export const deleteCycle = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM cycles WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting cycle:', error);
-    throw error;
-  }
+  await execute('Error deleting cycle:', 'DELETE FROM cycles WHERE id = ?', id);
 };
 
 export const updateCycle = async (id: number, name: string, startDate: string, endDate: string) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'UPDATE cycles SET name = ?, start_date = ?, end_date = ? WHERE id = ?',
-      name, startDate, endDate, id
-    );
-  } catch (error) {
-    console.error('Error updating cycle:', error);
-    throw error;
-  }
+  await execute(
+    'Error updating cycle:',
+    'UPDATE cycles SET name = ?, start_date = ?, end_date = ? WHERE id = ?',
+    name,
+    startDate,
+    endDate,
+    id
+  );
 };
 
-// Compounds (Reference Data)
 export const getCompounds = async () => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; name: string; type: 'injectable' | 'oral' | 'peptide'; half_life_hours: number; created_at: string }>(
-      'SELECT * FROM compounds ORDER BY name ASC'
-    );
-  } catch (error) {
-    console.error('Error getting compounds:', error);
-    return [];
-  }
+  return await queryAll<{ id: number; name: string; type: 'injectable' | 'oral' | 'peptide'; half_life_hours: number; created_at: string }>(
+    'Error getting compounds:',
+    'SELECT * FROM compounds ORDER BY name ASC'
+  );
 };
 
 export const addCompound = async (name: string, type: 'injectable' | 'oral' | 'peptide', halfLifeHours: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
-      name, type, halfLifeHours
-    );
-  } catch (error) {
-    console.error('Error adding compound:', error);
-    throw error;
-  }
+  await execute(
+    'Error adding compound:',
+    'INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)',
+    name,
+    type,
+    halfLifeHours
+  );
 };
 
-// Cycle Compounds
 export const getCycleCompounds = async (cycleId: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    return await db.getAllAsync<{ id: number; cycle_id: number; compound_id: number; name: string; amount: number; amount_unit: 'mg' | 'iu' | 'mcg'; dosing_period: number; start_date: string; end_date: string; created_at: string; half_life_hours: number }>(
-      `SELECT cc.*, c.half_life_hours 
-       FROM cycle_compounds cc
-       JOIN compounds c ON cc.compound_id = c.id
-       WHERE cc.cycle_id = ? 
-       ORDER BY cc.start_date ASC`,
-      cycleId
-    );
-  } catch (error) {
-    console.error('Error getting cycle compounds:', error);
-    return [];
-  }
+  return await queryAll<{
+    id: number;
+    cycle_id: number;
+    compound_id: number;
+    name: string;
+    type: 'injectable' | 'oral' | 'peptide';
+    amount: number;
+    amount_unit: 'mg' | 'iu' | 'mcg';
+    dosing_period: number;
+    start_date: string;
+    end_date: string;
+    created_at: string;
+    half_life_hours: number;
+  }>(
+    'Error getting cycle compounds:',
+    `SELECT cc.*, c.half_life_hours, c.type
+     FROM cycle_compounds cc
+     JOIN compounds c ON cc.compound_id = c.id
+     WHERE cc.cycle_id = ? 
+     ORDER BY cc.start_date ASC`,
+    cycleId
+  );
 };
 
 export const addCycleCompound = async (
@@ -784,28 +678,22 @@ export const addCycleCompound = async (
   startDate: string, 
   endDate: string
 ) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'INSERT INTO cycle_compounds (cycle_id, compound_id, name, amount, amount_unit, dosing_period, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      cycleId, compoundId, name, amount, amountUnit, dosingPeriod, startDate, endDate
-    );
-  } catch (error) {
-    console.error('Error adding cycle compound:', error);
-    throw error;
-  }
+  await execute(
+    'Error adding cycle compound:',
+    'INSERT INTO cycle_compounds (cycle_id, compound_id, name, amount, amount_unit, dosing_period, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    cycleId,
+    compoundId,
+    name,
+    amount,
+    amountUnit,
+    dosingPeriod,
+    startDate,
+    endDate
+  );
 };
 
 export const deleteCycleCompound = async (id: number) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync('DELETE FROM cycle_compounds WHERE id = ?', id);
-  } catch (error) {
-    console.error('Error deleting cycle compound:', error);
-    throw error;
-  }
+  await execute('Error deleting cycle compound:', 'DELETE FROM cycle_compounds WHERE id = ?', id);
 };
 
 export const updateCycleCompound = async (
@@ -816,15 +704,14 @@ export const updateCycleCompound = async (
   startDate: string, 
   endDate: string
 ) => {
-  try {
-    if (!db) await initDatabase();
-    if (!db) throw new Error('Database not initialized');
-    await db.runAsync(
-      'UPDATE cycle_compounds SET amount = ?, amount_unit = ?, dosing_period = ?, start_date = ?, end_date = ? WHERE id = ?',
-      amount, amountUnit, dosingPeriod, startDate, endDate, id
-    );
-  } catch (error) {
-    console.error('Error updating cycle compound:', error);
-    throw error;
-  }
+  await execute(
+    'Error updating cycle compound:',
+    'UPDATE cycle_compounds SET amount = ?, amount_unit = ?, dosing_period = ?, start_date = ?, end_date = ? WHERE id = ?',
+    amount,
+    amountUnit,
+    dosingPeriod,
+    startDate,
+    endDate,
+    id
+  );
 };

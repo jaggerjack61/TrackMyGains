@@ -118,8 +118,13 @@ export default function WorkoutDetailScreen() {
           <TouchableOpacity 
             style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}
             onPress={() => router.push({
-              pathname: `/track-workouts/${routineId}/${workoutId}/${item.id}`,
-              params: { exerciseName: item.name }
+              pathname: '/track-workouts/[routineId]/[workoutId]/[exerciseId]',
+              params: {
+                routineId: String(routineId),
+                workoutId: String(workoutId),
+                exerciseId: String(item.id),
+                exerciseName: item.name,
+              }
             })}
           >
             <View style={styles.itemContent}>

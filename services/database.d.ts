@@ -38,6 +38,31 @@ export interface ExerciseLog {
   created_at: string;
 }
 
+export interface Diet {
+  id: number;
+  name: string;
+  created_at: string;
+  sort_order: number;
+}
+
+export interface DailyLog {
+  id: number;
+  diet_id: number;
+  date: string;
+  created_at: string;
+}
+
+export interface Meal {
+  id: number;
+  daily_log_id: number;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  created_at: string;
+}
+
 export declare const initDatabase: () => Promise<void>;
 export declare const addWeight: (weight: number, date: string) => Promise<void>;
 export declare const getWeights: () => Promise<WeightRecord[]>;
@@ -68,3 +93,23 @@ export declare const getExerciseLogs: (exerciseId: number) => Promise<ExerciseLo
 export declare const addExerciseLog: (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => Promise<void>;
 export declare const deleteExerciseLog: (id: number) => Promise<void>;
 export declare const updateExerciseLog: (id: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => Promise<void>;
+
+// Diets
+export declare const getDiets: () => Promise<Diet[]>;
+export declare const addDiet: (name: string) => Promise<void>;
+export declare const deleteDiet: (id: number) => Promise<void>;
+export declare const updateDietOrder: (diets: Diet[]) => Promise<void>;
+export declare const updateDiet: (id: number, name: string) => Promise<void>;
+
+// Daily Logs
+export declare const getDailyLogs: (dietId: number) => Promise<DailyLog[]>;
+export declare const addDailyLog: (dietId: number, date: string) => Promise<number>; // Returns the ID of the new log
+export declare const deleteDailyLog: (id: number) => Promise<void>;
+export declare const getDailyLogByDate: (dietId: number, date: string) => Promise<DailyLog | null>;
+
+// Meals
+export declare const getMeals: (dailyLogId: number) => Promise<Meal[]>;
+export declare const addMeal: (dailyLogId: number, name: string, calories: number, protein: number, carbs: number, fats: number) => Promise<void>;
+export declare const deleteMeal: (id: number) => Promise<void>;
+export declare const getRecentMeals: (query: string) => Promise<Meal[]>;
+export declare const updateMeal: (id: number, name: string, calories: number, protein: number, carbs: number, fats: number) => Promise<void>;

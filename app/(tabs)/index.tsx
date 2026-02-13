@@ -58,7 +58,7 @@ export default function HomeScreen() {
         <DashboardCard 
           title="Track Diet" 
           icon="food-apple" 
-          onPress={() => {}}
+          onPress={() => router.push('/track-diet')}
         />
         <DashboardCard 
           title="Track Cycle" 

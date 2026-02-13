@@ -4,6 +4,9 @@ const WEB_STORAGE_KEY_ROUTINES = 'trackmygains_routines';
 const WEB_STORAGE_KEY_WORKOUTS = 'trackmygains_workouts';
 const WEB_STORAGE_KEY_EXERCISES = 'trackmygains_exercises';
 const WEB_STORAGE_KEY_EXERCISE_LOGS = 'trackmygains_exercise_logs';
+const WEB_STORAGE_KEY_DIETS = 'trackmygains_diets';
+const WEB_STORAGE_KEY_DAILY_LOGS = 'trackmygains_daily_logs';
+const WEB_STORAGE_KEY_MEALS = 'trackmygains_meals';
 
 const getWebData = (key: string): any[] => {
   try {
@@ -242,4 +245,158 @@ export const updateExerciseLog = async (id: number, date: string, weight: number
     logs[index] = { ...logs[index], date, weight, weight_unit: weightUnit, reps, sets };
     saveWebData(WEB_STORAGE_KEY_EXERCISE_LOGS, logs);
   }
+};
+
+// Diets
+export const getDiets = async () => {
+  return getWebData(WEB_STORAGE_KEY_DIETS).sort((a, b) => {
+    if (a.sort_order !== b.sort_order) {
+        return (a.sort_order || 0) - (b.sort_order || 0);
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+};
+
+export const addDiet = async (name: string) => {
+  const diets = getWebData(WEB_STORAGE_KEY_DIETS);
+  const maxOrder = diets.reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
+  const newDiet = {
+    id: Date.now(),
+    name,
+    created_at: new Date().toISOString(),
+    sort_order: maxOrder + 1
+  };
+  diets.push(newDiet);
+  saveWebData(WEB_STORAGE_KEY_DIETS, diets);
+};
+
+export const deleteDiet = async (id: number) => {
+  const diets = getWebData(WEB_STORAGE_KEY_DIETS);
+  saveWebData(WEB_STORAGE_KEY_DIETS, diets.filter(d => d.id !== id));
+  
+  // Cascade delete daily logs
+  const dailyLogs = getWebData(WEB_STORAGE_KEY_DAILY_LOGS);
+  const dailyLogsToDelete = dailyLogs.filter(l => l.diet_id === id);
+  saveWebData(WEB_STORAGE_KEY_DAILY_LOGS, dailyLogs.filter(l => l.diet_id !== id));
+  
+  // Cascade delete meals
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  const dailyLogIds = dailyLogsToDelete.map(l => l.id);
+  saveWebData(WEB_STORAGE_KEY_MEALS, meals.filter(m => !dailyLogIds.includes(m.daily_log_id)));
+};
+
+export const updateDietOrder = async (diets: { id: number; sort_order: number }[]) => {
+    const allDiets = getWebData(WEB_STORAGE_KEY_DIETS);
+    const dietMap = new Map(allDiets.map(d => [d.id, d]));
+
+    diets.forEach((d, index) => {
+        const existing = dietMap.get(d.id);
+        if (existing) {
+            existing.sort_order = index;
+        }
+    });
+
+    saveWebData(WEB_STORAGE_KEY_DIETS, Array.from(dietMap.values()));
+};
+
+export const updateDiet = async (id: number, name: string) => {
+  const diets = getWebData(WEB_STORAGE_KEY_DIETS);
+  const index = diets.findIndex(d => d.id === id);
+  if (index !== -1) {
+    diets[index].name = name;
+    saveWebData(WEB_STORAGE_KEY_DIETS, diets);
+  }
+};
+
+// Daily Logs
+export const getDailyLogs = async (dietId: number) => {
+  return getWebData(WEB_STORAGE_KEY_DAILY_LOGS)
+    .filter(l => l.diet_id === dietId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
+export const getDailyLogByDate = async (dietId: number, date: string) => {
+  const logs = getWebData(WEB_STORAGE_KEY_DAILY_LOGS);
+  return logs.find(l => l.diet_id === dietId && l.date === date) || null;
+};
+
+export const addDailyLog = async (dietId: number, date: string) => {
+  const logs = getWebData(WEB_STORAGE_KEY_DAILY_LOGS);
+  const id = Date.now();
+  const newLog = {
+    id,
+    diet_id: dietId,
+    date,
+    created_at: new Date().toISOString()
+  };
+  logs.push(newLog);
+  saveWebData(WEB_STORAGE_KEY_DAILY_LOGS, logs);
+  return id;
+};
+
+export const deleteDailyLog = async (id: number) => {
+  const logs = getWebData(WEB_STORAGE_KEY_DAILY_LOGS);
+  saveWebData(WEB_STORAGE_KEY_DAILY_LOGS, logs.filter(l => l.id !== id));
+  
+  // Cascade delete meals
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  saveWebData(WEB_STORAGE_KEY_MEALS, meals.filter(m => m.daily_log_id !== id));
+};
+
+// Meals
+export const getMeals = async (dailyLogId: number) => {
+  return getWebData(WEB_STORAGE_KEY_MEALS)
+    .filter(m => m.daily_log_id === dailyLogId)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+};
+
+export const addMeal = async (dailyLogId: number, name: string, calories: number, protein: number, carbs: number, fats: number) => {
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  const newMeal = {
+    id: Date.now(),
+    daily_log_id: dailyLogId,
+    name,
+    calories,
+    protein,
+    carbs,
+    fats,
+    created_at: new Date().toISOString()
+  };
+  meals.push(newMeal);
+  saveWebData(WEB_STORAGE_KEY_MEALS, meals);
+};
+
+export const deleteMeal = async (id: number) => {
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  saveWebData(WEB_STORAGE_KEY_MEALS, meals.filter(m => m.id !== id));
+};
+
+export const updateMeal = async (id: number, name: string, calories: number, protein: number, carbs: number, fats: number) => {
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  const index = meals.findIndex(m => m.id === id);
+  if (index !== -1) {
+    meals[index] = { ...meals[index], name, calories, protein, carbs, fats };
+    saveWebData(WEB_STORAGE_KEY_MEALS, meals);
+  }
+};
+
+export const getRecentMeals = async (query: string) => {
+  const meals = getWebData(WEB_STORAGE_KEY_MEALS);
+  const matchedMeals = meals.filter(m => m.name.toLowerCase().includes(query.toLowerCase()));
+  
+  // Deduplicate by name, keeping the most recent one
+  const uniqueMeals = new Map();
+  matchedMeals.forEach(meal => {
+    if (!uniqueMeals.has(meal.name)) {
+      uniqueMeals.set(meal.name, meal);
+    } else {
+        if (new Date(meal.created_at) > new Date(uniqueMeals.get(meal.name).created_at)) {
+            uniqueMeals.set(meal.name, meal);
+        }
+    }
+  });
+  
+  return Array.from(uniqueMeals.values())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
 };

@@ -18,6 +18,7 @@ import {
     View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { Header } from '@/components/Header';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -147,7 +148,8 @@ export default function TrackWeightScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <Stack.Screen options={{ title: 'Track Weight' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header title="Track Weight" />
       
       {/* Date Range Picker */}
       <View style={[styles.rangeContainer, { backgroundColor: cardBackgroundColor }]}>

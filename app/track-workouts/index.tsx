@@ -1,3 +1,4 @@
+import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -28,6 +29,7 @@ export default function TrackWorkoutsScreen() {
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
+  const backgroundColor = useThemeColor({}, 'background');
 
   useEffect(() => {
     loadData();
@@ -130,7 +132,8 @@ export default function TrackWorkoutsScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemedView style={styles.container}>
-        <Stack.Screen options={{ title: 'Workout Routines' }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <Header title="Workout Routines" />
         
         {/* List */}
         <DraggableFlatList

@@ -1,20 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  Alert,
-} from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getWorkouts, addWorkout, deleteWorkout, updateWorkout, initDatabase, Workout, updateWorkoutOrder } from '@/services/database';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { addWorkout, deleteWorkout, getWorkouts, initDatabase, updateWorkout, updateWorkoutOrder, Workout } from '@/services/database';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Modal,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Header } from '@/components/Header';
 
 export default function RoutineDetailScreen() {
   const { routineId } = useLocalSearchParams();
@@ -29,6 +30,7 @@ export default function RoutineDetailScreen() {
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
+  const backgroundColor = useThemeColor({}, 'background');
 
   useEffect(() => {
     loadData();
@@ -134,7 +136,8 @@ export default function RoutineDetailScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemedView style={styles.container}>
-        <Stack.Screen options={{ title: 'Workouts' }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <Header title="Workouts" />
         
         {/* List */}
         <DraggableFlatList

@@ -1,23 +1,23 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import {
-  StyleSheet,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  Alert,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getExercises, addExercise, deleteExercise, updateExercise, initDatabase, Exercise } from '@/services/database';
 import { COMMON_EXERCISES } from '@/constants/exercises';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { addExercise, deleteExercise, Exercise, getExercises, initDatabase, updateExercise } from '@/services/database';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+    Alert,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { Header } from '@/components/Header';
 
 export default function WorkoutDetailScreen() {
   const { workoutId } = useLocalSearchParams();
@@ -32,6 +32,7 @@ export default function WorkoutDetailScreen() {
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
+  const backgroundColor = useThemeColor({}, 'background');
 
   useEffect(() => {
     loadData();
@@ -99,7 +100,8 @@ export default function WorkoutDetailScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <Stack.Screen options={{ title: 'Exercises' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header title="Exercises" />
       
       {/* List */}
       <FlatList

@@ -1,10 +1,11 @@
+import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { COMMON_EXERCISES } from '@/constants/exercises';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addExercise, deleteExercise, Exercise, getExercises, initDatabase, updateExercise } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
@@ -17,10 +18,10 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { Header } from '@/components/Header';
 
 export default function WorkoutDetailScreen() {
-  const { workoutId } = useLocalSearchParams();
+  const { workoutId, routineId } = useLocalSearchParams();
+  const router = useRouter();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
@@ -114,7 +115,13 @@ export default function WorkoutDetailScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}>
+          <TouchableOpacity 
+            style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}
+            onPress={() => router.push({
+              pathname: `/track-workouts/${routineId}/${workoutId}/${item.id}`,
+              params: { exerciseName: item.name }
+            })}
+          >
             <View style={styles.itemContent}>
               <View style={styles.iconBox}>
                 <MaterialCommunityIcons name="weight-lifter" size={24} color={tintColor} />
@@ -129,7 +136,7 @@ export default function WorkoutDetailScreen() {
                     <MaterialCommunityIcons name="trash-can-outline" size={24} color="#EF4444" />
                 </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
 

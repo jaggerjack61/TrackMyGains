@@ -27,6 +27,17 @@ export interface Exercise {
   created_at: string;
 }
 
+export interface ExerciseLog {
+  id: number;
+  exercise_id: number;
+  date: string;
+  weight: number;
+  weight_unit: 'kg' | 'lbs';
+  reps: number;
+  sets: number;
+  created_at: string;
+}
+
 export declare const initDatabase: () => Promise<void>;
 export declare const addWeight: (weight: number, date: string) => Promise<void>;
 export declare const getWeights: () => Promise<WeightRecord[]>;
@@ -51,3 +62,9 @@ export declare const getExercises: (workoutId: number) => Promise<Exercise[]>;
 export declare const addExercise: (workoutId: number, name: string) => Promise<void>;
 export declare const deleteExercise: (id: number) => Promise<void>;
 export declare const updateExercise: (id: number, name: string) => Promise<void>;
+
+// Exercise Logs
+export declare const getExerciseLogs: (exerciseId: number) => Promise<ExerciseLog[]>;
+export declare const addExerciseLog: (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => Promise<void>;
+export declare const deleteExerciseLog: (id: number) => Promise<void>;
+export declare const updateExerciseLog: (id: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => Promise<void>;

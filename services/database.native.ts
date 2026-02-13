@@ -42,6 +42,17 @@ export const initDatabase = async () => {
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (workout_id) REFERENCES workouts (id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS exercise_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          exercise_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          weight REAL NOT NULL,
+          weight_unit TEXT NOT NULL,
+          reps INTEGER NOT NULL,
+          sets INTEGER NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE
+        );
       `);
       
       // Migration to add sort_order if it doesn't exist (simplified check)
@@ -291,6 +302,60 @@ export const updateExercise = async (id: number, name: string) => {
     await db.runAsync('UPDATE exercises SET name = ? WHERE id = ?', name, id);
   } catch (error) {
     console.error('Error updating exercise:', error);
+    throw error;
+  }
+};
+
+// Exercise Logs
+export const getExerciseLogs = async (exerciseId: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    return await db.getAllAsync<{ id: number; exercise_id: number; date: string; weight: number; weight_unit: 'kg' | 'lbs'; reps: number; sets: number; created_at: string }>(
+      'SELECT * FROM exercise_logs WHERE exercise_id = ? ORDER BY date DESC, created_at DESC',
+      exerciseId
+    );
+  } catch (error) {
+    console.error('Error getting exercise logs:', error);
+    return [];
+  }
+};
+
+export const addExerciseLog = async (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'INSERT INTO exercise_logs (exercise_id, date, weight, weight_unit, reps, sets) VALUES (?, ?, ?, ?, ?, ?)',
+      exerciseId, date, weight, weightUnit, reps, sets
+    );
+  } catch (error) {
+    console.error('Error adding exercise log:', error);
+    throw error;
+  }
+};
+
+export const deleteExerciseLog = async (id: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync('DELETE FROM exercise_logs WHERE id = ?', id);
+  } catch (error) {
+    console.error('Error deleting exercise log:', error);
+    throw error;
+  }
+};
+
+export const updateExerciseLog = async (id: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
+  try {
+    if (!db) await initDatabase();
+    if (!db) throw new Error('Database not initialized');
+    await db.runAsync(
+      'UPDATE exercise_logs SET date = ?, weight = ?, weight_unit = ?, reps = ?, sets = ? WHERE id = ?',
+      date, weight, weightUnit, reps, sets, id
+    );
+  } catch (error) {
+    console.error('Error updating exercise log:', error);
     throw error;
   }
 };

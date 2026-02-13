@@ -3,6 +3,7 @@ const WEB_STORAGE_KEY_WEIGHTS = 'trackmygains_weights';
 const WEB_STORAGE_KEY_ROUTINES = 'trackmygains_routines';
 const WEB_STORAGE_KEY_WORKOUTS = 'trackmygains_workouts';
 const WEB_STORAGE_KEY_EXERCISES = 'trackmygains_exercises';
+const WEB_STORAGE_KEY_EXERCISE_LOGS = 'trackmygains_exercise_logs';
 
 const getWebData = (key: string): any[] => {
   try {
@@ -191,6 +192,10 @@ export const addExercise = async (workoutId: number, name: string) => {
 export const deleteExercise = async (id: number) => {
   const exercises = getWebData(WEB_STORAGE_KEY_EXERCISES);
   saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises.filter(e => e.id !== id));
+  
+  // Cascade delete logs
+  const logs = getWebData(WEB_STORAGE_KEY_EXERCISE_LOGS);
+  saveWebData(WEB_STORAGE_KEY_EXERCISE_LOGS, logs.filter(l => l.exercise_id !== id));
 };
 
 export const updateExercise = async (id: number, name: string) => {
@@ -199,5 +204,42 @@ export const updateExercise = async (id: number, name: string) => {
   if (index !== -1) {
     exercises[index].name = name;
     saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises);
+  }
+};
+
+// Exercise Logs
+export const getExerciseLogs = async (exerciseId: number) => {
+  return getWebData(WEB_STORAGE_KEY_EXERCISE_LOGS)
+    .filter(l => l.exercise_id === exerciseId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+};
+
+export const addExerciseLog = async (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
+  const logs = getWebData(WEB_STORAGE_KEY_EXERCISE_LOGS);
+  const newLog = {
+    id: Date.now(),
+    exercise_id: exerciseId,
+    date,
+    weight,
+    weight_unit: weightUnit,
+    reps,
+    sets,
+    created_at: new Date().toISOString()
+  };
+  logs.push(newLog);
+  saveWebData(WEB_STORAGE_KEY_EXERCISE_LOGS, logs);
+};
+
+export const deleteExerciseLog = async (id: number) => {
+  const logs = getWebData(WEB_STORAGE_KEY_EXERCISE_LOGS);
+  saveWebData(WEB_STORAGE_KEY_EXERCISE_LOGS, logs.filter(l => l.id !== id));
+};
+
+export const updateExerciseLog = async (id: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
+  const logs = getWebData(WEB_STORAGE_KEY_EXERCISE_LOGS);
+  const index = logs.findIndex(l => l.id === id);
+  if (index !== -1) {
+    logs[index] = { ...logs[index], date, weight, weight_unit: weightUnit, reps, sets };
+    saveWebData(WEB_STORAGE_KEY_EXERCISE_LOGS, logs);
   }
 };

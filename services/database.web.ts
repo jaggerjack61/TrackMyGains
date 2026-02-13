@@ -49,15 +49,22 @@ export const deleteWeight = async (id: number) => {
 
 // Routines
 export const getRoutines = async () => {
-  return getWebData(WEB_STORAGE_KEY_ROUTINES).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return getWebData(WEB_STORAGE_KEY_ROUTINES).sort((a, b) => {
+    if (a.sort_order !== b.sort_order) {
+        return (a.sort_order || 0) - (b.sort_order || 0);
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 };
 
 export const addRoutine = async (name: string) => {
   const routines = getWebData(WEB_STORAGE_KEY_ROUTINES);
+  const maxOrder = routines.reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
   const newRoutine = {
     id: Date.now(),
     name,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    sort_order: maxOrder + 1
   };
   routines.push(newRoutine);
   saveWebData(WEB_STORAGE_KEY_ROUTINES, routines);
@@ -78,21 +85,53 @@ export const deleteRoutine = async (id: number) => {
   saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises.filter(e => !workoutIds.includes(e.workout_id)));
 };
 
+export const updateRoutineOrder = async (routines: { id: number; sort_order: number }[]) => {
+    const allRoutines = getWebData(WEB_STORAGE_KEY_ROUTINES);
+    const routineMap = new Map(allRoutines.map(r => [r.id, r]));
+
+    routines.forEach((r, index) => {
+        const existing = routineMap.get(r.id);
+        if (existing) {
+            existing.sort_order = index;
+        }
+    });
+
+    saveWebData(WEB_STORAGE_KEY_ROUTINES, Array.from(routineMap.values()));
+};
+
+export const updateRoutine = async (id: number, name: string) => {
+  const routines = getWebData(WEB_STORAGE_KEY_ROUTINES);
+  const index = routines.findIndex(r => r.id === id);
+  if (index !== -1) {
+    routines[index].name = name;
+    saveWebData(WEB_STORAGE_KEY_ROUTINES, routines);
+  }
+};
+
 // Workouts
 export const getWorkouts = async (routineId: number) => {
   return getWebData(WEB_STORAGE_KEY_WORKOUTS)
     .filter(w => w.routine_id === routineId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => {
+        if (a.sort_order !== b.sort_order) {
+            return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 };
 
 export const addWorkout = async (routineId: number, name: string) => {
   const workouts = getWebData(WEB_STORAGE_KEY_WORKOUTS);
+  const routineWorkouts = workouts.filter(w => w.routine_id === routineId);
+  const maxOrder = routineWorkouts.reduce((max, w) => Math.max(max, w.sort_order || 0), 0);
+  
   const newWorkout = {
     id: Date.now(),
     routine_id: routineId,
     name,
     date: new Date().toISOString(),
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    sort_order: maxOrder + 1
   };
   workouts.push(newWorkout);
   saveWebData(WEB_STORAGE_KEY_WORKOUTS, workouts);
@@ -105,6 +144,29 @@ export const deleteWorkout = async (id: number) => {
   // Cascade delete exercises
   const exercises = getWebData(WEB_STORAGE_KEY_EXERCISES);
   saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises.filter(e => e.workout_id !== id));
+};
+
+export const updateWorkoutOrder = async (workouts: { id: number; sort_order: number }[]) => {
+    const allWorkouts = getWebData(WEB_STORAGE_KEY_WORKOUTS);
+    const workoutMap = new Map(allWorkouts.map(w => [w.id, w]));
+
+    workouts.forEach((w, index) => {
+        const existing = workoutMap.get(w.id);
+        if (existing) {
+            existing.sort_order = index;
+        }
+    });
+
+    saveWebData(WEB_STORAGE_KEY_WORKOUTS, Array.from(workoutMap.values()));
+};
+
+export const updateWorkout = async (id: number, name: string) => {
+  const workouts = getWebData(WEB_STORAGE_KEY_WORKOUTS);
+  const index = workouts.findIndex(w => w.id === id);
+  if (index !== -1) {
+    workouts[index].name = name;
+    saveWebData(WEB_STORAGE_KEY_WORKOUTS, workouts);
+  }
 };
 
 // Exercises
@@ -129,4 +191,13 @@ export const addExercise = async (workoutId: number, name: string) => {
 export const deleteExercise = async (id: number) => {
   const exercises = getWebData(WEB_STORAGE_KEY_EXERCISES);
   saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises.filter(e => e.id !== id));
+};
+
+export const updateExercise = async (id: number, name: string) => {
+  const exercises = getWebData(WEB_STORAGE_KEY_EXERCISES);
+  const index = exercises.findIndex(e => e.id === id);
+  if (index !== -1) {
+    exercises[index].name = name;
+    saveWebData(WEB_STORAGE_KEY_EXERCISES, exercises);
+  }
 };

@@ -8,6 +8,7 @@ export interface Routine {
   id: number;
   name: string;
   created_at: string;
+  sort_order: number;
 }
 
 export interface Workout {
@@ -16,6 +17,7 @@ export interface Workout {
   name: string;
   date: string;
   created_at: string;
+  sort_order: number;
 }
 
 export interface Exercise {
@@ -34,13 +36,18 @@ export declare const deleteWeight: (id: number) => Promise<void>;
 export declare const getRoutines: () => Promise<Routine[]>;
 export declare const addRoutine: (name: string) => Promise<void>;
 export declare const deleteRoutine: (id: number) => Promise<void>;
+export declare const updateRoutineOrder: (routines: Routine[]) => Promise<void>;
+export declare const updateRoutine: (id: number, name: string) => Promise<void>;
 
 // Workouts
 export declare const getWorkouts: (routineId: number) => Promise<Workout[]>;
 export declare const addWorkout: (routineId: number, name: string) => Promise<void>;
 export declare const deleteWorkout: (id: number) => Promise<void>;
+export declare const updateWorkoutOrder: (workouts: Workout[]) => Promise<void>;
+export declare const updateWorkout: (id: number, name: string) => Promise<void>;
 
 // Exercises
 export declare const getExercises: (workoutId: number) => Promise<Exercise[]>;
 export declare const addExercise: (workoutId: number, name: string) => Promise<void>;
 export declare const deleteExercise: (id: number) => Promise<void>;
+export declare const updateExercise: (id: number, name: string) => Promise<void>;

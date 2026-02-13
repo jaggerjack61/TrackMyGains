@@ -1,24 +1,28 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { addRoutine, deleteRoutine, getRoutines, initDatabase, Routine } from '@/services/database';
+import { addRoutine, deleteRoutine, getRoutines, initDatabase, Routine, updateRoutine, updateRoutineOrder } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
-    FlatList,
     Modal,
     StyleSheet,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function TrackWorkoutsScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newRoutineName, setNewRoutineName] = useState('');
+  
+  // Edit mode
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   
   const router = useRouter();
   const cardBackgroundColor = useThemeColor({}, 'card');
@@ -35,20 +39,31 @@ export default function TrackWorkoutsScreen() {
     setRoutines(data);
   };
 
-  const handleAddRoutine = async () => {
+  const handleSaveRoutine = async () => {
     if (!newRoutineName.trim()) {
       Alert.alert('Error', 'Please enter a routine name');
       return;
     }
 
     try {
-      await addRoutine(newRoutineName.trim());
+      if (editingRoutine) {
+        await updateRoutine(editingRoutine.id, newRoutineName.trim());
+      } else {
+        await addRoutine(newRoutineName.trim());
+      }
       setModalVisible(false);
       setNewRoutineName('');
+      setEditingRoutine(null);
       loadData();
     } catch (e: any) {
       Alert.alert('Error', 'Failed to save routine: ' + (e.message || e));
     }
+  };
+
+  const handleEdit = (routine: Routine) => {
+    setEditingRoutine(routine);
+    setNewRoutineName(routine.name);
+    setModalVisible(true);
   };
 
   const handleDelete = (id: number) => {
@@ -69,87 +84,125 @@ export default function TrackWorkoutsScreen() {
     ]);
   };
 
-  return (
-    <ThemedView style={styles.container}>
-      <Stack.Screen options={{ title: 'Workout Routines' }} />
-      
-      {/* List */}
-      <FlatList
-        data={routines}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <ThemedText>No routines yet. Add one to get started!</ThemedText>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => router.push(`/track-workouts/${item.id}`)}
-          >
-            <View style={styles.itemContent}>
-              <View style={styles.iconBox}>
-                <MaterialCommunityIcons name="notebook-outline" size={24} color={tintColor} />
-              </View>
-              <ThemedText type="defaultSemiBold" style={styles.itemText}>{item.name}</ThemedText>
+  const onDragEnd = async ({ data }: { data: Routine[] }) => {
+    setRoutines(data);
+    try {
+        await updateRoutineOrder(data);
+    } catch (e) {
+        console.error('Failed to update routine order', e);
+        Alert.alert('Error', 'Failed to save order');
+        loadData(); // Revert to db state on error
+    }
+  };
+
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<Routine>) => {
+    return (
+      <ScaleDecorator>
+        <TouchableOpacity 
+          style={[
+            styles.listItem, 
+            { backgroundColor: cardBackgroundColor },
+            isActive && { backgroundColor: tintColor, opacity: 0.9 }
+          ]}
+          onPress={() => router.push(`/track-workouts/${item.id}`)}
+          onLongPress={drag}
+          disabled={isActive}
+        >
+          <View style={styles.itemContent}>
+            <View style={styles.iconBox}>
+              <MaterialCommunityIcons name="notebook-outline" size={24} color={tintColor} />
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
-              <MaterialCommunityIcons name="trash-can-outline" size={24} color="#EF4444" />
+            <ThemedText type="defaultSemiBold" style={[styles.itemText, isActive && { color: '#FFF' }]}>{item.name}</ThemedText>
+          </View>
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={() => handleEdit(item)} style={styles.actionButton}>
+                <MaterialCommunityIcons name="pencil-outline" size={24} color={isActive ? '#FFF' : tintColor} />
             </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-      />
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={() => setModalVisible(true)}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-      </TouchableOpacity>
-
-      {/* Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.centeredView}>
-          <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>New Routine</ThemedText>
-            
-            <View style={styles.inputGroup}>
-              <ThemedText>Name:</ThemedText>
-              <TextInput
-                style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                onChangeText={setNewRoutineName}
-                value={newRoutineName}
-                placeholder="e.g. Push Day"
-                placeholderTextColor="#999"
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonClose]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Cancel</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: tintColor }]}
-                onPress={handleAddRoutine}
-              >
-                <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.actionButton}>
+                <MaterialCommunityIcons name="trash-can-outline" size={24} color={isActive ? '#FFF' : "#EF4444"} />
+            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </ThemedView>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  };
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemedView style={styles.container}>
+        <Stack.Screen options={{ title: 'Workout Routines' }} />
+        
+        {/* List */}
+        <DraggableFlatList
+            data={routines}
+            onDragEnd={onDragEnd}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                    <ThemedText>No routines yet. Add one to get started!</ThemedText>
+                    <ThemedText style={{fontSize: 12, marginTop: 8, opacity: 0.7}}>Long press to reorder</ThemedText>
+                </View>
+            }
+        />
+
+        {/* FAB */}
+        <TouchableOpacity
+            style={[styles.fab, { backgroundColor: tintColor }]}
+            onPress={() => {
+                setEditingRoutine(null);
+                setNewRoutineName('');
+                setModalVisible(true);
+            }}
+        >
+            <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* Modal */}
+        <Modal
+            animationType="slide"
+            transparent={true}
+            visible={modalVisible}
+            onRequestClose={() => setModalVisible(false)}
+        >
+            <View style={styles.centeredView}>
+            <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
+                <ThemedText type="subtitle" style={styles.modalTitle}>
+                    {editingRoutine ? 'Edit Routine' : 'New Routine'}
+                </ThemedText>
+                
+                <View style={styles.inputGroup}>
+                <ThemedText>Name:</ThemedText>
+                <TextInput
+                    style={[styles.input, { color: textColor, borderColor: tintColor }]}
+                    onChangeText={setNewRoutineName}
+                    value={newRoutineName}
+                    placeholder="e.g. Push Day"
+                    placeholderTextColor="#999"
+                    autoFocus
+                />
+                </View>
+
+                <View style={styles.modalButtons}>
+                <TouchableOpacity
+                    style={[styles.button, styles.buttonClose]}
+                    onPress={() => setModalVisible(false)}
+                >
+                    <ThemedText>Cancel</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.button, { backgroundColor: tintColor }]}
+                    onPress={handleSaveRoutine}
+                >
+                    <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
+                </TouchableOpacity>
+                </View>
+            </View>
+            </View>
+        </Modal>
+        </ThemedView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -196,8 +249,13 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 16,
   },
-  deleteButton: {
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
     padding: 8,
+    marginLeft: 4,
   },
   fab: {
     position: 'absolute',

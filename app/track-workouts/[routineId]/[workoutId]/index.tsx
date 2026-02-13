@@ -16,7 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getExercises, addExercise, deleteExercise, initDatabase, Exercise } from '@/services/database';
+import { getExercises, addExercise, deleteExercise, updateExercise, initDatabase, Exercise } from '@/services/database';
 import { COMMON_EXERCISES } from '@/constants/exercises';
 
 export default function WorkoutDetailScreen() {
@@ -25,6 +25,9 @@ export default function WorkoutDetailScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // Edit mode
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
@@ -41,7 +44,7 @@ export default function WorkoutDetailScreen() {
     setExercises(data);
   };
 
-  const handleAddExercise = async (name: string) => {
+  const handleSaveExercise = async (name: string) => {
     const exerciseName = name.trim();
     if (!exerciseName) {
       Alert.alert('Error', 'Please enter an exercise name');
@@ -49,14 +52,25 @@ export default function WorkoutDetailScreen() {
     }
 
     try {
-      await addExercise(Number(workoutId), exerciseName);
+      if (editingExercise) {
+        await updateExercise(editingExercise.id, exerciseName);
+      } else {
+        await addExercise(Number(workoutId), exerciseName);
+      }
       setModalVisible(false);
       setNewExerciseName('');
       setShowSuggestions(false);
+      setEditingExercise(null);
       loadData();
     } catch (e: any) {
       Alert.alert('Error', 'Failed to save exercise: ' + (e.message || e));
     }
+  };
+
+  const handleEdit = (exercise: Exercise) => {
+    setEditingExercise(exercise);
+    setNewExerciseName(exercise.name);
+    setModalVisible(true);
   };
 
   const handleDelete = (id: number) => {
@@ -105,9 +119,14 @@ export default function WorkoutDetailScreen() {
               </View>
               <ThemedText type="defaultSemiBold" style={styles.itemText}>{item.name}</ThemedText>
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
-              <MaterialCommunityIcons name="trash-can-outline" size={24} color="#EF4444" />
-            </TouchableOpacity>
+            <View style={styles.actions}>
+                <TouchableOpacity onPress={() => handleEdit(item)} style={styles.actionButton}>
+                    <MaterialCommunityIcons name="pencil-outline" size={24} color={tintColor} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.actionButton}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={24} color="#EF4444" />
+                </TouchableOpacity>
+            </View>
           </View>
         )}
       />
@@ -115,7 +134,11 @@ export default function WorkoutDetailScreen() {
       {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+            setEditingExercise(null);
+            setNewExerciseName('');
+            setModalVisible(true);
+        }}
       >
         <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
       </TouchableOpacity>
@@ -132,7 +155,9 @@ export default function WorkoutDetailScreen() {
             style={styles.centeredView}
         >
           <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>Add Exercise</ThemedText>
+            <ThemedText type="subtitle" style={styles.modalTitle}>
+                {editingExercise ? 'Edit Exercise' : 'Add Exercise'}
+            </ThemedText>
             
             <View style={styles.inputGroup}>
               <ThemedText>Name:</ThemedText>
@@ -175,7 +200,7 @@ export default function WorkoutDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: tintColor }]}
-                onPress={() => handleAddExercise(newExerciseName)}
+                onPress={() => handleSaveExercise(newExerciseName)}
               >
                 <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
               </TouchableOpacity>
@@ -230,8 +255,13 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 16,
   },
-  deleteButton: {
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
     padding: 8,
+    marginLeft: 4,
   },
   fab: {
     position: 'absolute',

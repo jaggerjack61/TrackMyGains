@@ -630,3 +630,13 @@ export const getCycleCompounds = cycleCompounds.list;
 export const addCycleCompound = cycleCompounds.add;
 export const deleteCycleCompound = cycleCompounds.remove;
 export const updateCycleCompound = cycleCompounds.update;
+
+export const exportDatabase = async () => {
+  console.log('Export not supported on web');
+  alert('Export not supported on web');
+};
+
+export const importDatabase = async () => {
+  console.log('Import not supported on web');
+  alert('Import not supported on web');
+};

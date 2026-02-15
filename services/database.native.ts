@@ -1,4 +1,10 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+// @ts-ignore
+import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<void> | null = null;
@@ -448,6 +454,101 @@ export const updateExerciseLog = async (id: number, date: string, weight: number
     sets,
     id
   );
+};
+
+export const exportDatabase = async () => {
+  if (Platform.OS === 'web') return;
+  const database = await requireDatabase();
+  await database.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+
+  const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || FileSystemLegacy.documentDirectory;
+  if (!cacheDir) {
+    throw new Error('Document directory is not available');
+  }
+
+  const exportFileName = 'trackmygains_backup.db';
+  const exportUri = `${cacheDir}${exportFileName}`;
+  const exportPath = exportUri.replace(/^file:\/\//, '').replace(/'/g, "''");
+
+  const existingExport = await FileSystemLegacy.getInfoAsync(exportUri);
+  if (existingExport.exists) {
+    await FileSystemLegacy.deleteAsync(exportUri, { idempotent: true });
+  }
+
+  await database.execAsync(`VACUUM INTO '${exportPath}'`);
+
+  try {
+    if (Platform.OS === 'android') {
+      const permissions = await FileSystemLegacy.StorageAccessFramework.requestDirectoryPermissionsAsync();
+
+      if (permissions.granted) {
+        const base64 = await FileSystemLegacy.readAsStringAsync(exportUri, { encoding: FileSystemLegacy.EncodingType.Base64 });
+
+        await FileSystemLegacy.StorageAccessFramework.createFileAsync(permissions.directoryUri, exportFileName, 'application/x-sqlite3')
+          .then(async (uri) => {
+            await FileSystemLegacy.writeAsStringAsync(uri, base64, { encoding: FileSystemLegacy.EncodingType.Base64 });
+          })
+          .catch(e => {
+            console.log(e);
+            throw new Error('Failed to save file');
+          });
+      }
+    } else {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(exportUri, {
+          dialogTitle: 'Export Database',
+          UTI: 'public.database',
+          mimeType: 'application/x-sqlite3',
+        });
+      } else {
+        throw new Error('Sharing is not available on this device');
+      }
+    }
+  } finally {
+    const tempInfo = await FileSystemLegacy.getInfoAsync(exportUri);
+    if (tempInfo.exists) {
+      await FileSystemLegacy.deleteAsync(exportUri, { idempotent: true });
+    }
+  }
+};
+
+export const importDatabase = async () => {
+  if (Platform.OS === 'web') return;
+
+  const result = await DocumentPicker.getDocumentAsync({
+    copyToCacheDirectory: true,
+    type: '*/*', 
+  });
+
+  if (result.canceled) return;
+
+  const { uri } = result.assets[0];
+  
+  if (db) {
+     await db.closeAsync();
+     db = null;
+     initPromise = null;
+  }
+
+  const docDir = FileSystem.documentDirectory || FileSystemLegacy.documentDirectory;
+  if (!docDir) {
+      throw new Error('Document directory is not available');
+  }
+
+  const dbName = 'trackmygains.db';
+  const dbDir = `${docDir}SQLite/`;
+  const dbPath = `${dbDir}${dbName}`;
+
+  if (!(await FileSystemLegacy.getInfoAsync(dbDir)).exists) {
+    await FileSystemLegacy.makeDirectoryAsync(dbDir, { intermediates: true });
+  }
+
+  await FileSystemLegacy.copyAsync({
+    from: uri,
+    to: dbPath,
+  });
+
+  await initDatabase();
 };
 
 export const getDiets = async () => {

@@ -177,3 +177,6 @@ export declare const addMeal: (dailyLogId: number, name: string, calories: numbe
 export declare const deleteMeal: (id: number) => Promise<void>;
 export declare const getRecentMeals: (query: string) => Promise<Meal[]>;
 export declare const updateMeal: (id: number, name: string, calories: number, protein: number, carbs: number, fats: number) => Promise<void>;
+
+export declare const exportDatabase: () => Promise<void>;
+export declare const importDatabase: () => Promise<void>;

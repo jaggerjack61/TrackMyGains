@@ -41,7 +41,7 @@ TrackMyGains/
 ├─ app/
 │  ├─ (tabs)/                # Tab navigator
 │  │  ├─ index.tsx           # Landing page (cards dashboard)
-│  │  └─ explore.tsx         # Explore/help screen
+│  │  └─ settings.tsx        # Settings screen
 │  ├─ track-weight/          # Track weight flow
 │  ├─ track-diet/            # Track diet flow
 │  ├─ track-workouts/        # Routines/workouts/exercises

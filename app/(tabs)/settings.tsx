@@ -1,10 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform, StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 
-import { ExternalLink } from '@/components/external-link';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors, withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { exportDatabase, importDatabase } from '@/services/database';
 
@@ -12,6 +12,7 @@ export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, 'mutedText');
   const tintColor = useThemeColor({}, 'tint');
   const cardColor = useThemeColor({}, 'card');
+  const borderColor = useThemeColor({}, 'border');
 
   const handleExport = async () => {
     try {
@@ -49,25 +50,20 @@ export default function SettingsScreen() {
 
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#6D28D9', dark: '#0F172A' }}
+      headerBackgroundColor={{ light: Colors.light.background, dark: Colors.dark.background }}
       headerImage={
         <View style={styles.header}>
-          <MaterialCommunityIcons name="cog-outline" size={92} color="rgba(255,255,255,0.92)" />
+          <MaterialCommunityIcons name="cog-outline" size={92} color={tintColor} />
           <View style={styles.headerText}>
-            <ThemedText type="title" lightColor="#FFFFFF" darkColor="#FFFFFF">
-              Settings
-            </ThemedText>
-            <ThemedText
-              lightColor="rgba(255,255,255,0.82)"
-              darkColor="rgba(255,255,255,0.82)"
-              style={styles.tagline}>
+            <ThemedText type="title">Settings</ThemedText>
+            <ThemedText style={[styles.tagline, { color: mutedTextColor }]}>
               Manage your preferences
             </ThemedText>
           </View>
           <MaterialCommunityIcons
             name="cog"
             size={240}
-            color="rgba(255,255,255,0.10)"
+            color={withAlpha(tintColor, 0.12)}
             style={styles.headerBgIcon}
           />
         </View>
@@ -81,7 +77,7 @@ export default function SettingsScreen() {
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
-            style={[styles.button, { backgroundColor: cardColor }]} 
+            style={[styles.button, { backgroundColor: cardColor, borderColor }]} 
             onPress={handleExport}
         >
             <MaterialCommunityIcons name="export" size={24} color={tintColor} style={styles.buttonIcon} />
@@ -92,7 +88,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-            style={[styles.button, { backgroundColor: cardColor, marginTop: 12 }]} 
+            style={[styles.button, { backgroundColor: cardColor, borderColor, marginTop: 12 }]} 
             onPress={handleImport}
         >
             <MaterialCommunityIcons name="import" size={24} color={tintColor} style={styles.buttonIcon} />
@@ -143,7 +139,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     // Shadow for iOS
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

@@ -1,5 +1,7 @@
+import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,18 +9,17 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    FlatList,
-    Modal,
-    Platform,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { Header } from '@/components/Header';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -49,6 +50,8 @@ export default function TrackWeightScreen() {
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
+  const borderColor = useThemeColor({}, 'border');
+  const mutedTextColor = useThemeColor({}, 'mutedText');
 
   useEffect(() => {
     loadData();
@@ -130,7 +133,7 @@ export default function TrackWeightScreen() {
       datasets: [
         {
           data: data,
-          color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`, // primary color
+          color: (opacity = 1) => withAlpha(tintColor, opacity),
           strokeWidth: 2,
         },
       ],
@@ -152,7 +155,7 @@ export default function TrackWeightScreen() {
       <Header title="Track Weight" />
       
       {/* Date Range Picker */}
-      <View style={[styles.rangeContainer, { backgroundColor: cardBackgroundColor }]}>
+      <View style={[styles.rangeContainer, { backgroundColor: cardBackgroundColor, borderColor }]}>
         <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
           <ThemedText>Start: {startDate.toLocaleDateString()}</ThemedText>
         </TouchableOpacity>
@@ -213,15 +216,15 @@ export default function TrackWeightScreen() {
              backgroundGradientFrom: backgroundColor,
              backgroundGradientTo: backgroundColor,
              decimalPlaces: 1,
-             color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`,
-             labelColor: (opacity = 1) => textColor,
+             color: (opacity = 1) => withAlpha(tintColor, opacity),
+             labelColor: () => textColor,
              style: {
                borderRadius: 16,
              },
              propsForDots: {
                r: "6",
                strokeWidth: "2",
-               stroke: "#ffa726"
+                stroke: tintColor,
              }
            }}
            bezier
@@ -243,7 +246,7 @@ export default function TrackWeightScreen() {
         data={[...weights].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={[styles.listItem, { borderBottomColor: cardBackgroundColor }]}>
+          <View style={[styles.listItem, { borderBottomColor: borderColor }]}>
             <View>
               <ThemedText type="defaultSemiBold">{item.weight} kg</ThemedText>
               <ThemedText style={styles.dateText}>{new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}</ThemedText>
@@ -277,7 +280,10 @@ export default function TrackWeightScreen() {
             
             <View style={styles.inputGroup}>
               <ThemedText>Date:</ThemedText>
-              <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.modalDateButton}>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                style={[styles.modalDateButton, { borderColor }]}
+              >
                 <ThemedText>{newDate.toLocaleDateString()}</ThemedText>
               </TouchableOpacity>
             </View>
@@ -301,19 +307,19 @@ export default function TrackWeightScreen() {
             <View style={styles.inputGroup}>
               <ThemedText>Weight (kg):</ThemedText>
               <TextInput
-                style={[styles.input, { color: textColor, borderColor: tintColor }]}
+                style={[styles.input, { color: textColor, borderColor: borderColor }]}
                 onChangeText={setNewWeight}
                 value={newWeight}
                 keyboardType="numeric"
                 placeholder="0.0"
-                placeholderTextColor="#999"
+                placeholderTextColor={mutedTextColor}
                 autoFocus
               />
             </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.button, styles.buttonClose]}
+                style={[styles.button, styles.buttonClose, { borderColor }]}
                 onPress={() => setModalVisible(false)}
               >
                 <ThemedText>Cancel</ThemedText>
@@ -341,7 +347,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     padding: 12,
     margin: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   dateButton: {
     padding: 8,
@@ -357,7 +364,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 80,
+    paddingBottom: 120,
   },
   listItem: {
     flexDirection: 'row',
@@ -377,7 +384,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     right: 20,
-    bottom: 20,
+    bottom: 100,
     borderRadius: 28,
     elevation: 8,
     shadowColor: '#000',
@@ -440,7 +447,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonClose: {
-    backgroundColor: '#ddd',
+    backgroundColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#ccc',
   },
   iosDatePickerDone: {
     alignItems: 'flex-end',

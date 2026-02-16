@@ -1,3 +1,4 @@
+import { Colors, withAlpha } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ export function DashboardCard({ title, icon, onPress }: DashboardCardProps) {
   const borderColor = useThemeColor({}, 'border');
   const iconColor = useThemeColor({}, 'tint');
   const iconBackgroundColor = useThemeColor({}, 'tintSoft');
-  const rippleColor = theme === 'light' ? 'rgba(109,40,217,0.12)' : 'rgba(167,139,250,0.16)';
+  const rippleColor = withAlpha(Colors[theme].tint, theme === 'dark' ? 0.18 : 0.12);
 
   return (
     <Pressable

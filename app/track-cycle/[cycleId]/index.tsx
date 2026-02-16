@@ -8,6 +8,7 @@ import { LineChart } from 'react-native-chart-kit';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
@@ -177,8 +178,8 @@ export default function CycleDetailScreen() {
                     backgroundGradientFrom: cardColor,
                     backgroundGradientTo: cardColor,
                     decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`, // Default color
-                    labelColor: (opacity = 1) => textColor,
+                    color: (opacity = 1) => withAlpha(primaryColor, opacity),
+                    labelColor: () => textColor,
                     style: {
                       borderRadius: 16,
                     },

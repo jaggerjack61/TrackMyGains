@@ -16,11 +16,19 @@ interface HeaderProps {
 export function Header({ title, showBack = true, rightAction }: HeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const backgroundColor = useThemeColor({}, 'background');
+  const backgroundColor = useThemeColor({}, 'surface');
   const textColor = useThemeColor({}, 'text');
+  const borderColor = useThemeColor({}, 'border');
 
   return (
-    <View style={{ backgroundColor, paddingTop: insets.top }}>
+    <View
+      style={{
+        backgroundColor,
+        paddingTop: insets.top,
+        borderBottomColor: borderColor,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+      }}
+    >
       <View style={styles.headerContent}>
         {showBack && (
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>

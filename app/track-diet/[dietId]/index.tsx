@@ -1,6 +1,7 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addDailyLog, DailyLog, deleteDailyLog, getDailyLogs, getMeals } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,13 +9,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    FlatList,
-    Platform,
-    StyleSheet,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  FlatList,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
@@ -173,8 +174,8 @@ export default function DietDetailScreen() {
                     backgroundGradientFrom: backgroundColor,
                     backgroundGradientTo: backgroundColor,
                     decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(109, 40, 217, ${opacity})`,
-                    labelColor: (opacity = 1) => textColor,
+                    color: (opacity = 1) => withAlpha(tintColor, opacity),
+                    labelColor: () => textColor,
                     style: { borderRadius: 16 },
                     propsForDots: { r: "4", strokeWidth: "2", stroke: tintColor }
                   }}

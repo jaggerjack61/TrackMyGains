@@ -5,21 +5,21 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#6D28D9';
-const tintColorDark = '#A78BFA';
+const tintColorLight = '#2563EB';
+const tintColorDark = '#60A5FA';
 
 export const Colors = {
   light: {
-    text: '#0B1220',
-    mutedText: '#5B6475',
-    background: '#F6F7FB',
+    text: '#0F172A',
+    mutedText: '#64748B',
+    background: '#F2F4F8',
     surface: '#FFFFFF',
     card: '#FFFFFF',
-    border: '#E6E8F0',
+    border: '#E5E7EB',
     tint: tintColorLight,
-    tintSoft: '#F3EEFF',
-    icon: '#5B6475',
-    tabIconDefault: '#7B8498',
+    tintSoft: '#EAF2FF',
+    icon: '#64748B',
+    tabIconDefault: '#94A3B8',
     tabIconSelected: tintColorLight,
     tabBarBackground: '#FFFFFF',
   },
@@ -38,6 +38,18 @@ export const Colors = {
     tabBarBackground: '#0F172A',
   },
 };
+
+export function withAlpha(hexColor: string, alpha: number) {
+  const hex = hexColor.replace('#', '').trim();
+  const normalized =
+    hex.length === 3 ? hex.split('').map((c) => `${c}${c}`).join('') : hex.padEnd(6, '0').slice(0, 6);
+  const intValue = Number.parseInt(normalized, 16);
+  const r = (intValue >> 16) & 255;
+  const g = (intValue >> 8) & 255;
+  const b = intValue & 255;
+  const clampedAlpha = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r},${g},${b},${clampedAlpha})`;
+}
 
 export const Fonts = Platform.select({
   ios: {

@@ -2,21 +2,22 @@ import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { COMMON_EXERCISES } from '@/constants/exercises';
+import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addExercise, deleteExercise, Exercise, getExercises, initDatabase, updateExercise } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function WorkoutDetailScreen() {
@@ -128,7 +129,7 @@ export default function WorkoutDetailScreen() {
             })}
           >
             <View style={styles.itemContent}>
-              <View style={styles.iconBox}>
+              <View style={[styles.iconBox, { backgroundColor: withAlpha(tintColor, 0.12) }]}>
                 <MaterialCommunityIcons name="weight-lifter" size={24} color={tintColor} />
               </View>
               <ThemedText type="defaultSemiBold" style={styles.itemText}>{item.name}</ThemedText>
@@ -262,7 +263,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(109, 40, 217, 0.1)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },

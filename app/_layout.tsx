@@ -7,6 +7,7 @@ import { useState } from 'react';
 import 'react-native-reanimated';
 
 import CustomSplashScreen from '@/components/SplashScreen';
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -28,8 +29,23 @@ export default function RootLayout() {
     );
   }
 
+  const themeName = colorScheme ?? 'light';
+  const baseTheme = themeName === 'dark' ? DarkTheme : DefaultTheme;
+  const navigationTheme = {
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      primary: Colors[themeName].tint,
+      background: Colors[themeName].background,
+      card: Colors[themeName].card,
+      text: Colors[themeName].text,
+      border: Colors[themeName].border,
+      notification: Colors[themeName].tint,
+    },
+  };
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="track-cycle" options={{ headerShown: false }} />

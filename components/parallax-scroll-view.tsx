@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 28,
-    paddingBottom: 32,
+    paddingBottom: 110,
     gap: 16,
     marginTop: -28,
     borderTopLeftRadius: 28,

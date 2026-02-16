@@ -5,33 +5,32 @@ import { StyleSheet, View } from 'react-native';
 import { DashboardCard } from '@/components/DashboardCard';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
+import { Colors, withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export default function HomeScreen() {
   const mutedTextColor = useThemeColor({}, 'mutedText');
+  const tintColor = useThemeColor({}, 'tint');
   const router = useRouter();
 
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#6D28D9', dark: '#0F172A' }}
+      headerBackgroundColor={{ light: Colors.light.background, dark: Colors.dark.background }}
       headerImage={
         <View style={styles.header}>
-          <MaterialCommunityIcons name="dumbbell" size={96} color="rgba(255,255,255,0.92)" />
+          <MaterialCommunityIcons name="dumbbell" size={96} color={tintColor} />
           <View style={styles.headerText}>
-            <ThemedText type="title" lightColor="#FFFFFF" darkColor="#FFFFFF" style={styles.brand}>
+            <ThemedText type="title" style={styles.brand}>
               Track My Gains
             </ThemedText>
-            <ThemedText
-              lightColor="rgba(255,255,255,0.82)"
-              darkColor="rgba(255,255,255,0.82)"
-              style={styles.tagline}>
+            <ThemedText style={[styles.tagline, { color: mutedTextColor }]}>
               Log workouts, weight, diet, and cycles
             </ThemedText>
           </View>
           <MaterialCommunityIcons
             name="lightning-bolt"
             size={220}
-            color="rgba(255,255,255,0.10)"
+            color={withAlpha(tintColor, 0.12)}
             style={styles.headerBgIcon}
           />
         </View>

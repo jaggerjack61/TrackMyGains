@@ -1,21 +1,22 @@
+import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addWorkout, deleteWorkout, getWorkouts, initDatabase, updateWorkout, updateWorkoutOrder, Workout } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Header } from '@/components/Header';
 
 export default function RoutineDetailScreen() {
   const { routineId } = useLocalSearchParams();
@@ -113,8 +114,13 @@ export default function RoutineDetailScreen() {
           disabled={isActive}
         >
           <View style={styles.itemContent}>
-            <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="dumbbell" size={24} color={tintColor} />
+            <View
+              style={[
+                styles.iconBox,
+                { backgroundColor: isActive ? withAlpha('#FFFFFF', 0.22) : withAlpha(tintColor, 0.12) },
+              ]}
+            >
+              <MaterialCommunityIcons name="dumbbell" size={24} color={isActive ? '#FFFFFF' : tintColor} />
             </View>
             <View>
               <ThemedText type="defaultSemiBold" style={[styles.itemText, isActive && { color: '#FFF' }]}>{item.name}</ThemedText>
@@ -249,7 +255,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(109, 40, 217, 0.1)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },

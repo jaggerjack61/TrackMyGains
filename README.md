@@ -5,25 +5,27 @@ Cross‑platform fitness tracker built with Expo and React Native. Log workouts,
 - Platforms: Android, iOS, Web
 - Router: Expo Router (file‑based)
 - Persistence: SQLite (via `expo-sqlite`)
+- Syncing:Firebase Firestore
 - Theming: Light/Dark with a centralized palette
 
 Repository: https://github.com/jaggerjack61/TrackMyGains
 
 ## Quick Start
 
-1) Install dependencies
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2) Start in interactive mode (choose Android/iOS/Web)
+2. Start in interactive mode (choose Android/iOS/Web)
 
 ```bash
 npx expo start
 ```
 
 Shortcuts:
+
 - Web: `npm run web` (or press `w` in the Expo terminal)
 - Android: `npm run android`
 - iOS: `npm run ios` (requires macOS with Xcode)
@@ -33,6 +35,10 @@ Linting:
 ```bash
 npm run lint
 ```
+
+## Alternatively
+
+- You can install the apk in the repo directly onto your device
 
 ## Project Structure
 
@@ -65,14 +71,17 @@ TrackMyGains/
 ## Theming Guide
 
 The app uses a centralized color system in [`constants/theme.ts`](constants/theme.ts). Core tokens include:
+
 - `background`, `surface`, `card`, `text`, `mutedText`, `tint`, `border`
 
 Helpers:
+
 - `ThemedView` automatically applies the theme’s `background`.
 - `ThemedText` automatically applies the theme’s `text`.
 - `useThemeColor` lets you pull specific tokens inside components.
 
 Tips:
+
 - For full‑screen or section backgrounds, use `ThemedView`.
 - For transparent wrappers inside a section (e.g., small layout containers), prefer `View` to avoid unintended grey backgrounds.
 - Hero/header areas use `ParallaxScrollView`, which sets a header color and a content container styled like a carded surface.
@@ -84,6 +93,7 @@ Tips:
 - Light/Dark mode with polished shadows and elevation
 - Parallax header experience
 - SQLite persistence via `expo-sqlite`
+- Syncing:Firebase Firestore
 
 ## Scripts
 
@@ -111,3 +121,15 @@ npm run reset-project  # Replace starter code with a blank app/ folder
 ## License
 
 This project currently doesn’t include a license file. If you intend to open‑source it, consider adding an MIT or Apache‑2.0 license.
+
+## Build Configuration
+
+### Android Package Name
+
+The Android package name is configured as `com.jaggerjack61.TrackMyGains`.
+**Important:** This must match the package name in `google-services.json` exactly (case-sensitive).
+
+### Dependencies
+
+- **@react-native-async-storage/async-storage**: This project uses version `1.24.0` to maintain compatibility with Firebase.
+- **Expo Doctor**: You may see a warning about the `async-storage` version mismatch. This is intentional and suppressed in `package.json` via `expo.install.exclude`.

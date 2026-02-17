@@ -461,7 +461,7 @@ export const exportDatabase = async () => {
   const database = await requireDatabase();
   await database.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
 
-  const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || FileSystemLegacy.documentDirectory;
+  const cacheDir = FileSystem.Paths.cache?.uri || FileSystem.Paths.document?.uri || FileSystemLegacy.documentDirectory;
   if (!cacheDir) {
     throw new Error('Document directory is not available');
   }
@@ -530,7 +530,7 @@ export const importDatabase = async () => {
      initPromise = null;
   }
 
-  const docDir = FileSystem.documentDirectory || FileSystemLegacy.documentDirectory;
+  const docDir = FileSystem.Paths.document?.uri || FileSystemLegacy.documentDirectory;
   if (!docDir) {
       throw new Error('Document directory is not available');
   }

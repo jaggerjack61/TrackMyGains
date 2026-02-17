@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "562933005382",
+    "project_id": "trackmygains-c6056",
+    "storage_bucket": "trackmygains-c6056.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:562933005382:android:2def61d4e885dbecc09e47",
+        "android_client_info": {
+          "package_name": "com.jaggerjack61.TrackMyGains"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYCxW82L-nzn0hJP9vKbO8xf13LL1g0-0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

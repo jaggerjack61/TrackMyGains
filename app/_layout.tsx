@@ -3,27 +3,40 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import CustomSplashScreen from '@/components/SplashScreen';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getFirebaseAuth } from '@/services/firebase';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'auth/index',
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isSplashAnimationFinished, setIsSplashAnimationFinished] = useState(false);
   const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [hasUser, setHasUser] = useState(false);
+
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      setHasUser(Boolean(user));
+      setIsAuthResolved(true);
+    });
+    return unsubscribe;
+  }, []);
 
   if (!fontsLoaded) {
     return null;
   }
 
-  if (!isSplashAnimationFinished) {
+  if (!isSplashAnimationFinished || !isAuthResolved) {
     return (
       <CustomSplashScreen onFinish={() => setIsSplashAnimationFinished(true)} />
     );
@@ -44,9 +57,12 @@ export default function RootLayout() {
     },
   };
 
+  const initialRouteName = hasUser ? '(tabs)' : 'auth/index';
+
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack>
+      <Stack initialRouteName={initialRouteName}>
+        <Stack.Screen name="auth/index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="track-cycle" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

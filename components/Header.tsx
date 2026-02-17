@@ -18,6 +18,7 @@ interface ProfileMenuProps {
   onClose: () => void;
   email: string | null;
   onLogout: () => void;
+  onSync: () => Promise<void>;
 }
 
 export function Header({ title, showBack = true, rightAction }: HeaderProps) {
@@ -49,7 +50,7 @@ export function Header({ title, showBack = true, rightAction }: HeaderProps) {
   );
 }
 
-export function ProfileMenu({ isOpen, onClose, email, onLogout }: ProfileMenuProps) {
+export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: ProfileMenuProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const cardColor = useThemeColor({}, 'card');
@@ -61,6 +62,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout }: ProfileMenuPro
   const drawerWidth = Math.min(320, width * 0.82);
   const translateX = useRef(new Animated.Value(-drawerWidth)).current;
   const [isVisible, setIsVisible] = useState(isOpen);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -85,6 +87,16 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout }: ProfileMenuPro
       });
     }
   }, [drawerWidth, isOpen, isVisible, translateX]);
+
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await onSync();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   if (!isVisible) {
     return null;
@@ -117,6 +129,16 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout }: ProfileMenuPro
             <ThemedText style={[styles.menuLabel, { color: mutedTextColor }]}>Signed in as</ThemedText>
             <ThemedText numberOfLines={1}>{email ?? 'Unknown user'}</ThemedText>
           </View>
+          <TouchableOpacity
+            style={[styles.syncButton, { backgroundColor: cardColor, borderColor }, isSyncing && styles.buttonDisabled]}
+            onPress={handleSync}
+            disabled={isSyncing}
+          >
+            <MaterialCommunityIcons name="cloud-sync" size={20} color={tintColor} />
+            <ThemedText style={[styles.syncText, { color: tintColor }]}>
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </ThemedText>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.logoutButton, { backgroundColor: tintSoft, borderColor }]}
             onPress={onLogout}
@@ -179,6 +201,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  syncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  syncText: {
+    fontWeight: '600',
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -190,5 +224,8 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

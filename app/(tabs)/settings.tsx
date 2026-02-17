@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors, withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { exportDatabase, importDatabase } from '@/services/database';
-import { getFirebaseAuth } from '@/services/firebase';
+import { getFirebaseAuth, syncLocalDataToFirestore } from '@/services/firebase';
 
 export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, 'mutedText');
@@ -41,6 +41,37 @@ export default function SettingsScreen() {
     } catch (error: any) {
       Alert.alert('Logout failed', error?.message ?? 'Please try again.');
     }
+  };
+
+  const handleSync = async () => {
+    const { status, counts } = await syncLocalDataToFirestore({ force: true });
+    if (status === 'success') {
+      const total = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
+      const message = total === 0 ? 'No local data found to sync.' : `Synced ${total} items.`;
+      Alert.alert('Sync complete', message);
+      return;
+    }
+    if (status === 'offline') {
+      Alert.alert('Offline', 'Connect to the internet to sync your data.');
+      return;
+    }
+    if (status === 'unauthenticated') {
+      Alert.alert('Not signed in', 'Sign in to sync your data.');
+      return;
+    }
+    if (status === 'permission-denied') {
+      Alert.alert('Sync blocked', 'Firestore rules are blocking access.');
+      return;
+    }
+    if (status === 'busy') {
+      Alert.alert('Sync in progress', 'A sync is already running.');
+      return;
+    }
+    if (status === 'skipped') {
+      Alert.alert('Already synced', 'Your data was synced recently.');
+      return;
+    }
+    Alert.alert('Sync failed', 'Please try again.');
   };
 
   const handleExport = async () => {
@@ -147,6 +178,7 @@ export default function SettingsScreen() {
         onClose={() => setIsProfileOpen(false)}
         email={userEmail}
         onLogout={handleLogout}
+        onSync={handleSync}
       />
     </>
   );

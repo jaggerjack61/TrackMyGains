@@ -10,7 +10,7 @@ import 'react-native-reanimated';
 import CustomSplashScreen from '@/components/SplashScreen';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getFirebaseAuth } from '@/services/firebase';
+import { getFirebaseAuth, startFirestoreAutoSync, stopFirestoreAutoSync } from '@/services/firebase';
 
 export const unstable_settings = {
   anchor: 'auth/index',
@@ -28,8 +28,16 @@ export default function RootLayout() {
     const unsubscribe = onAuthStateChanged(auth, user => {
       setHasUser(Boolean(user));
       setIsAuthResolved(true);
+      if (user) {
+        startFirestoreAutoSync();
+      } else {
+        stopFirestoreAutoSync();
+      }
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      stopFirestoreAutoSync();
+    };
   }, []);
 
   if (!fontsLoaded) {

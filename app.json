@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/dumbell.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jaggerjack61.trackmygains"
     },
     "web": {
       "output": "static",

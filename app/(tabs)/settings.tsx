@@ -1,24 +1,24 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import React, { useEffect, useState } from "react";
+import { Alert, StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ProfileMenu } from '@/components/Header';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors, withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { exportDatabase, importDatabase } from '@/services/database';
-import { getFirebaseAuth, syncLocalDataToFirestore } from '@/services/firebase';
+import { ProfileMenu } from "@/components/Header";
+import ParallaxScrollView from "@/components/parallax-scroll-view";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Colors, withAlpha } from "@/constants/theme";
+import { useThemeColor } from "@/hooks/use-theme-color";
+import { exportDatabase, importDatabase } from "@/services/database";
+import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
 
 export default function SettingsScreen() {
-  const mutedTextColor = useThemeColor({}, 'mutedText');
-  const tintColor = useThemeColor({}, 'tint');
-  const cardColor = useThemeColor({}, 'card');
-  const borderColor = useThemeColor({}, 'border');
+  const mutedTextColor = useThemeColor({}, "mutedText");
+  const tintColor = useThemeColor({}, "tint");
+  const cardColor = useThemeColor({}, "card");
+  const borderColor = useThemeColor({}, "border");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     const auth = getFirebaseAuth();
-    const unsubscribe = onAuthStateChanged(auth, user => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUserEmail(user?.email ?? null);
     });
     return unsubscribe;
@@ -37,81 +37,91 @@ export default function SettingsScreen() {
       const auth = getFirebaseAuth();
       await signOut(auth);
       setIsProfileOpen(false);
-      router.replace('/auth');
+      router.replace("/auth");
     } catch (error: any) {
-      Alert.alert('Logout failed', error?.message ?? 'Please try again.');
+      Alert.alert("Logout failed", error?.message ?? "Please try again.");
     }
   };
 
   const handleSync = async () => {
-    const { status, counts } = await syncLocalDataToFirestore({ force: true });
-    if (status === 'success') {
-      const total = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
-      const message = total === 0 ? 'No local data found to sync.' : `Synced ${total} items.`;
-      Alert.alert('Sync complete', message);
+    const { status, stats } = await bidirectionalSync({ force: true });
+    if (status === "success") {
+      const pushed = stats
+        ? Object.values(stats.pushed).reduce((a, b) => a + b, 0)
+        : 0;
+      const pulled = stats
+        ? Object.values(stats.pulled).reduce((a, b) => a + b, 0)
+        : 0;
+      Alert.alert("Sync complete", `Pushed: ${pushed}\nPulled: ${pulled}`);
       return;
     }
-    if (status === 'offline') {
-      Alert.alert('Offline', 'Connect to the internet to sync your data.');
+    if (status === "offline") {
+      Alert.alert("Offline", "Connect to the internet to sync your data.");
       return;
     }
-    if (status === 'unauthenticated') {
-      Alert.alert('Not signed in', 'Sign in to sync your data.');
+    if (status === "unauthenticated") {
+      Alert.alert("Not signed in", "Sign in to sync your data.");
       return;
     }
-    if (status === 'permission-denied') {
-      Alert.alert('Sync blocked', 'Firestore rules are blocking access.');
+    if (status === "permission-denied") {
+      Alert.alert("Sync blocked", "Firestore rules are blocking access.");
       return;
     }
-    if (status === 'busy') {
-      Alert.alert('Sync in progress', 'A sync is already running.');
+    if (status === "busy") {
+      Alert.alert("Sync in progress", "A sync is already running.");
       return;
     }
-    if (status === 'skipped') {
-      Alert.alert('Already synced', 'Your data was synced recently.');
+    if (status === "skipped") {
+      Alert.alert("Already synced", "Your data was synced recently.");
       return;
     }
-    Alert.alert('Sync failed', 'Please try again.');
+    Alert.alert("Sync failed", "Please try again.");
   };
 
   const handleExport = async () => {
     try {
       await exportDatabase();
     } catch (error: any) {
-      Alert.alert('Export Failed', error.message);
+      Alert.alert("Export Failed", error.message);
     }
   };
 
   const handleImport = async () => {
     try {
       Alert.alert(
-        'Confirm Import',
-        'This will overwrite your current database with the selected file. This action cannot be undone. Are you sure?',
+        "Confirm Import",
+        "This will overwrite your current database with the selected file. This action cannot be undone. Are you sure?",
         [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Import', 
-            style: 'destructive',
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Import",
+            style: "destructive",
             onPress: async () => {
               try {
                 await importDatabase();
-                Alert.alert('Success', 'Database imported successfully. Please restart the app to ensure all data is loaded correctly.');
+                Alert.alert(
+                  "Success",
+                  "Database imported successfully. Please restart the app to ensure all data is loaded correctly.",
+                );
               } catch (error: any) {
-                Alert.alert('Import Failed', error.message);
+                Alert.alert("Import Failed", error.message);
               }
-            }
-          }
-        ]
+            },
+          },
+        ],
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert("Error", error.message);
     }
   };
 
   return (
     <>
       <ParallaxScrollView
-        headerBackgroundColor={{ light: Colors.light.background, dark: Colors.dark.background }}
+        headerBackgroundColor={{
+          light: Colors.light.background,
+          dark: Colors.dark.background,
+        }}
         headerImage={
           <View style={styles.header}>
             <TouchableOpacity
@@ -126,7 +136,11 @@ export default function SettingsScreen() {
             >
               <MaterialCommunityIcons name="menu" size={22} color={tintColor} />
             </TouchableOpacity>
-            <MaterialCommunityIcons name="cog-outline" size={92} color={tintColor} />
+            <MaterialCommunityIcons
+              name="cog-outline"
+              size={92}
+              color={tintColor}
+            />
             <View style={styles.headerText}>
               <ThemedText type="title">Settings</ThemedText>
               <ThemedText style={[styles.tagline, { color: mutedTextColor }]}>
@@ -140,7 +154,8 @@ export default function SettingsScreen() {
               style={styles.headerBgIcon}
             />
           </View>
-        }>
+        }
+      >
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="subtitle">Data Management</ThemedText>
         </ThemedView>
@@ -149,29 +164,45 @@ export default function SettingsScreen() {
         </ThemedText>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-              style={[styles.button, { backgroundColor: cardColor, borderColor }]} 
-              onPress={handleExport}
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: cardColor, borderColor }]}
+            onPress={handleExport}
           >
-              <MaterialCommunityIcons name="export" size={24} color={tintColor} style={styles.buttonIcon} />
-              <View>
-                  <ThemedText type="defaultSemiBold">Export Database</ThemedText>
-                  <ThemedText style={{ color: mutedTextColor, fontSize: 12 }}>Save your data to a file</ThemedText>
-              </View>
+            <MaterialCommunityIcons
+              name="export"
+              size={24}
+              color={tintColor}
+              style={styles.buttonIcon}
+            />
+            <View>
+              <ThemedText type="defaultSemiBold">Export Database</ThemedText>
+              <ThemedText style={{ color: mutedTextColor, fontSize: 12 }}>
+                Save your data to a file
+              </ThemedText>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-              style={[styles.button, { backgroundColor: cardColor, borderColor, marginTop: 12 }]} 
-              onPress={handleImport}
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: cardColor, borderColor, marginTop: 12 },
+            ]}
+            onPress={handleImport}
           >
-              <MaterialCommunityIcons name="import" size={24} color={tintColor} style={styles.buttonIcon} />
-              <View>
-                  <ThemedText type="defaultSemiBold">Import Database</ThemedText>
-                  <ThemedText style={{ color: mutedTextColor, fontSize: 12 }}>Restore data from a backup</ThemedText>
-              </View>
+            <MaterialCommunityIcons
+              name="import"
+              size={24}
+              color={tintColor}
+              style={styles.buttonIcon}
+            />
+            <View>
+              <ThemedText type="defaultSemiBold">Import Database</ThemedText>
+              <ThemedText style={{ color: mutedTextColor, fontSize: 12 }}>
+                Restore data from a backup
+              </ThemedText>
+            </View>
           </TouchableOpacity>
         </View>
-        
       </ParallaxScrollView>
       <ProfileMenu
         isOpen={isProfileOpen}
@@ -186,7 +217,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   titleContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 2,
   },
@@ -198,16 +229,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 56,
     paddingBottom: 28,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   menuButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 20,
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 2,
   },
   headerText: {
@@ -219,7 +250,7 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   headerBgIcon: {
-    position: 'absolute',
+    position: "absolute",
     right: -70,
     top: -60,
   },
@@ -227,13 +258,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -242,5 +273,5 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 16,
-  }
+  },
 });

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "TrackMyGains",
-    "slug": "TrackMyGains",
+    "slug": "trackmygains",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/dumbell.png",
@@ -31,6 +31,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8b463f27-7a4e-43cd-aecf-720f304955d1"
+      }
+    },
+    "owner": "jarai.samuel"
   }
 }

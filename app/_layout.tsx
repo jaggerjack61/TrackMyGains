@@ -1,34 +1,50 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { onAuthStateChanged } from 'firebase/auth';
-import { useEffect, useState } from 'react';
-import 'react-native-reanimated';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
+} from "@react-navigation/native";
+import { useFonts } from "expo-font";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { onAuthStateChanged } from "firebase/auth";
+import { useEffect, useState } from "react";
+import "react-native-reanimated";
 
-import CustomSplashScreen from '@/components/SplashScreen';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getFirebaseAuth, startFirestoreAutoSync, stopFirestoreAutoSync } from '@/services/firebase';
+import CustomSplashScreen from "@/components/SplashScreen";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import {
+    bidirectionalSync,
+    getFirebaseAuth,
+    startFirestoreAutoSync,
+    stopFirestoreAutoSync,
+} from "@/services/firebase";
 
 export const unstable_settings = {
-  anchor: 'auth/index',
+  anchor: "auth/index",
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [isSplashAnimationFinished, setIsSplashAnimationFinished] = useState(false);
+  const [isSplashAnimationFinished, setIsSplashAnimationFinished] =
+    useState(false);
   const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [hasUser, setHasUser] = useState(false);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
-    const unsubscribe = onAuthStateChanged(auth, user => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setHasUser(Boolean(user));
       setIsAuthResolved(true);
       if (user) {
+        // Run initial bidirectional sync on login
+        console.log(
+          "[App] User logged in, starting initial bidirectional sync...",
+        );
+        await bidirectionalSync({ force: true });
+        // Then start periodic auto-sync
         startFirestoreAutoSync();
       } else {
         stopFirestoreAutoSync();
@@ -50,8 +66,8 @@ export default function RootLayout() {
     );
   }
 
-  const themeName = colorScheme ?? 'light';
-  const baseTheme = themeName === 'dark' ? DarkTheme : DefaultTheme;
+  const themeName = colorScheme ?? "light";
+  const baseTheme = themeName === "dark" ? DarkTheme : DefaultTheme;
   const navigationTheme = {
     ...baseTheme,
     colors: {
@@ -65,7 +81,7 @@ export default function RootLayout() {
     },
   };
 
-  const initialRouteName = hasUser ? '(tabs)' : 'auth/index';
+  const initialRouteName = hasUser ? "(tabs)" : "auth/index";
 
   return (
     <ThemeProvider value={navigationTheme}>
@@ -73,7 +89,10 @@ export default function RootLayout() {
         <Stack.Screen name="auth/index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="track-cycle" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: "modal", title: "Modal" }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

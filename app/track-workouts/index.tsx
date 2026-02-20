@@ -1,19 +1,19 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { withAlpha } from '@/constants/theme';
+import { Fonts, withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addRoutine, deleteRoutine, getRoutines, initDatabase, Routine, updateRoutine, updateRoutineOrder } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Modal,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -31,6 +31,7 @@ export default function TrackWorkoutsScreen() {
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
+  const mutedTextColor = useThemeColor({}, 'mutedText');
 
   useEffect(() => {
     loadData();
@@ -152,24 +153,30 @@ export default function TrackWorkoutsScreen() {
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContent}
             renderItem={renderItem}
+            ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: withAlpha(textColor, 0.12) }]} />}
             ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                    <ThemedText>No routines yet. Add one to get started!</ThemedText>
-                    <ThemedText style={{fontSize: 12, marginTop: 8, opacity: 0.7}}>Long press to reorder</ThemedText>
+                    <ThemedText type="title" style={styles.emptyTitle}>No routines yet.</ThemedText>
+                    <ThemedText style={{ color: mutedTextColor, textAlign: 'center' }}>
+                      Add one to get started.
+                    </ThemedText>
+                    <ThemedText type="label" style={{ color: mutedTextColor, marginTop: 10 }}>
+                      Long press to reorder
+                    </ThemedText>
                 </View>
             }
         />
 
         {/* FAB */}
         <TouchableOpacity
-            style={[styles.fab, { backgroundColor: tintColor }]}
+          style={[styles.fab, { backgroundColor: textColor }]}
             onPress={() => {
                 setEditingRoutine(null);
                 setNewRoutineName('');
                 setModalVisible(true);
             }}
         >
-            <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+          <MaterialCommunityIcons name="plus" size={28} color={backgroundColor} />
         </TouchableOpacity>
 
         {/* Modal */}
@@ -192,23 +199,23 @@ export default function TrackWorkoutsScreen() {
                     onChangeText={setNewRoutineName}
                     value={newRoutineName}
                     placeholder="e.g. Push Day"
-                    placeholderTextColor="#999"
+                  placeholderTextColor={mutedTextColor}
                     autoFocus
                 />
                 </View>
 
                 <View style={styles.modalButtons}>
                 <TouchableOpacity
-                    style={[styles.button, styles.buttonClose]}
+                  style={[styles.button, styles.buttonClose, { borderColor: textColor }]}
                     onPress={() => setModalVisible(false)}
                 >
-                    <ThemedText>Cancel</ThemedText>
+                  <ThemedText type="label">Cancel</ThemedText>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.button, { backgroundColor: tintColor }]}
+                  style={[styles.button, { backgroundColor: textColor }]}
                     onPress={handleSaveRoutine}
                 >
-                    <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
+                  <ThemedText type="label" style={{ color: backgroundColor }}>Save</ThemedText>
                 </TouchableOpacity>
                 </View>
             </View>
@@ -224,26 +231,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 80,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 92,
   },
   emptyContainer: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
-    marginTop: 50,
+    marginTop: 60,
+    borderTopWidth: 1,
+    width: '100%',
+  },
+  emptyTitle: {
+    marginBottom: 8,
   },
   listItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingVertical: 18,
+    paddingHorizontal: 0,
+  },
+  separator: {
+    height: 1,
+    width: '100%',
   },
   itemContent: {
     flexDirection: 'row',
@@ -251,88 +262,103 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconBox: {
-    marginRight: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    marginRight: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 0,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(26,26,26,0.14)',
   },
   itemText: {
-    fontSize: 16,
+    fontSize: 12,
+    lineHeight: 18,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 8,
   },
   actionButton: {
-    padding: 8,
-    marginLeft: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginLeft: 8,
   },
   fab: {
     position: 'absolute',
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    borderRadius: 28,
-    elevation: 8,
+    right: 18,
+    bottom: 18,
+    borderRadius: 0,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
   },
   centeredView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.28)',
   },
   modalView: {
     margin: 20,
-    borderRadius: 20,
-    padding: 35,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(26,26,26,0.16)',
+    padding: 24,
     alignItems: 'stretch',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: '80%',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+    width: '86%',
   },
   modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
+    marginBottom: 18,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
+    gap: 6,
   },
   input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
+    height: 44,
+    marginTop: 2,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    borderRadius: 0,
+    fontFamily: Fonts?.serifItalic ?? Fonts?.serif,
+    fontSize: 16,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 18,
+    gap: 12,
   },
   button: {
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    minWidth: 80,
+    borderRadius: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minWidth: 110,
     alignItems: 'center',
   },
   buttonClose: {
-    backgroundColor: '#ddd',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
   },
 });

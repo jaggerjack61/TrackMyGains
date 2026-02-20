@@ -42,32 +42,36 @@ export function DashboardCard({ title, icon, onPress }: DashboardCardProps) {
 
 const styles = StyleSheet.create({
   cardContainer: {
-    padding: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
     width: '48%', // Approx half width for 2-column layout
     aspectRatio: 1, // Square cards
     marginBottom: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    elevation: 4,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    elevation: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
   cardPressed: {
-    transform: [{ scale: 0.98 }],
+    transform: [{ scale: 0.995 }],
   },
   iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    textTransform: 'uppercase',
+    letterSpacing: 2.2,
   },
 });

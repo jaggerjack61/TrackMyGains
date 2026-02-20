@@ -1,0 +1,7 @@
+- delagate any tasks that can be done in parrallel to subagents.
+- keep a file state.md in the root that has the current state of the project
+- if a state.md does not exist create one
+- read the state.md file before every prompt
+- update the state.md file after every prompt if there is a change worth noting
+- the state.md should make it easier for you to understand the project structure and state
+- the state file must not exceed 100 lines

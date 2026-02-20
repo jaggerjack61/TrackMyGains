@@ -1,12 +1,12 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { Fonts, Typography } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link' | 'label' | 'hero';
 };
 
 export function ThemedText({
@@ -28,6 +28,8 @@ export function ThemedText({
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
         type === 'subtitle' ? styles.subtitle : undefined,
         type === 'link' ? styles.link : undefined,
+        type === 'label' ? styles.label : undefined,
+        type === 'hero' ? styles.hero : undefined,
         style,
       ]}
       {...rest}
@@ -37,34 +39,43 @@ export function ThemedText({
 
 const styles = StyleSheet.create({
   default: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: Typography.body.fontSize,
+    lineHeight: Typography.body.lineHeight,
     fontFamily: Fonts?.sans,
   },
   defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '600',
-    fontFamily: Fonts?.sans,
+    fontSize: Typography.body.fontSize,
+    lineHeight: Typography.body.lineHeight,
+    fontFamily: Fonts?.sansMedium ?? Fonts?.sans,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '800',
-    lineHeight: 40,
-    letterSpacing: -0.5,
-    fontFamily: Fonts?.rounded,
+    fontSize: Typography.title.fontSize,
+    lineHeight: Typography.title.lineHeight,
+    letterSpacing: Typography.title.letterSpacing,
+    fontFamily: Fonts?.serif,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 26,
-    letterSpacing: -0.2,
+    fontSize: Typography.subtitle.fontSize,
+    lineHeight: Typography.subtitle.lineHeight,
+    letterSpacing: Typography.subtitle.letterSpacing,
     fontFamily: Fonts?.sans,
   },
+  hero: {
+    fontSize: Typography.hero.fontSize,
+    lineHeight: Typography.hero.lineHeight,
+    letterSpacing: Typography.hero.letterSpacing,
+    fontFamily: Fonts?.serif,
+  },
+  label: {
+    fontSize: Typography.label.fontSize,
+    lineHeight: Typography.label.lineHeight,
+    letterSpacing: Typography.label.letterSpacing,
+    textTransform: 'uppercase',
+    fontFamily: Fonts?.sansMedium ?? Fonts?.sans,
+  },
   link: {
-    lineHeight: 22,
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: Fonts?.sans,
+    lineHeight: Typography.body.lineHeight,
+    fontSize: Typography.body.fontSize,
+    fontFamily: Fonts?.sansMedium ?? Fonts?.sans,
   },
 });

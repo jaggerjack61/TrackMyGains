@@ -1,3 +1,11 @@
+import {
+    Inter_400Regular,
+    Inter_500Medium,
+} from "@expo-google-fonts/inter";
+import {
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_400Regular_Italic,
+} from "@expo-google-fonts/playfair-display";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
     DarkTheme,
@@ -11,6 +19,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
+import EditorialGridOverlay from "@/components/EditorialGridOverlay";
 import CustomSplashScreen from "@/components/SplashScreen";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -29,7 +38,13 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isSplashAnimationFinished, setIsSplashAnimationFinished] =
     useState(false);
-  const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
+  const [fontsLoaded] = useFonts({
+    ...MaterialCommunityIcons.font,
+    Inter_400Regular,
+    Inter_500Medium,
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_400Regular_Italic,
+  });
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [hasUser, setHasUser] = useState(false);
 
@@ -94,6 +109,7 @@ export default function RootLayout() {
           options={{ presentation: "modal", title: "Modal" }}
         />
       </Stack>
+      <EditorialGridOverlay />
       <StatusBar style="auto" />
     </ThemeProvider>
   );

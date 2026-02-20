@@ -1,11 +1,12 @@
+import { useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getFirebaseAuth } from '@/services/firebase';
 
@@ -21,12 +22,11 @@ export default function AuthScreen() {
 
   const primaryColor = useThemeColor({}, 'tint');
   const borderColor = useThemeColor({}, 'border');
-  const cardColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const mutedTextColor = useThemeColor({}, 'mutedText');
 
   const titleText = mode === 'login' ? 'Welcome back' : 'Create an account';
-  const subtitleText = mode === 'login' ? 'Login to continue' : 'Register to start tracking';
+  const subtitleText = mode === 'login' ? 'Sign in to continue' : 'Register to start tracking';
   const actionLabel = mode === 'login' ? 'Login' : 'Create Account';
   const isDisabled = isSubmitting;
 
@@ -92,17 +92,20 @@ export default function AuthScreen() {
     () => [
       styles.input,
       {
-        backgroundColor: cardColor,
+        backgroundColor: 'transparent',
         borderColor,
         color: textColor,
       },
     ],
-    [cardColor, borderColor, textColor]
+    [borderColor, textColor]
   );
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.header}>
+        <ThemedText type="label" style={{ color: mutedTextColor }}>
+          Track My Gains
+        </ThemedText>
         <ThemedText type="title" style={styles.title}>
           {titleText}
         </ThemedText>
@@ -111,18 +114,18 @@ export default function AuthScreen() {
         </ThemedText>
       </View>
 
-      <View style={[styles.segment, { borderColor }]}>
+      <View style={[styles.segment, { borderColor }]}> 
         <Pressable
-          style={[styles.segmentButton, mode === 'login' && { backgroundColor: cardColor }]}
+          style={[styles.segmentButton, mode === 'login' && { borderBottomColor: primaryColor, borderBottomWidth: 1 }]}
           onPress={() => setMode('login')}
         >
-          <ThemedText type="defaultSemiBold">Login</ThemedText>
+          <ThemedText type="label">Login</ThemedText>
         </Pressable>
         <Pressable
-          style={[styles.segmentButton, mode === 'register' && { backgroundColor: cardColor }]}
+          style={[styles.segmentButton, mode === 'register' && { borderBottomColor: primaryColor, borderBottomWidth: 1 }]}
           onPress={() => setMode('register')}
         >
-          <ThemedText type="defaultSemiBold">Register</ThemedText>
+          <ThemedText type="label">Register</ThemedText>
         </Pressable>
       </View>
 
@@ -161,11 +164,11 @@ export default function AuthScreen() {
       </View>
 
       <Pressable
-        style={[styles.primaryButton, { backgroundColor: primaryColor }, isDisabled && styles.disabledButton]}
+        style={[styles.primaryButton, { backgroundColor: textColor }, isDisabled && styles.disabledButton]}
         onPress={handleSubmit}
         disabled={isDisabled}
       >
-        <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
+        <ThemedText type="label" style={styles.primaryButtonText}>
           {isSubmitting ? 'Please wait...' : actionLabel}
         </ThemedText>
       </Pressable>
@@ -186,52 +189,59 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 72,
+    paddingTop: 86,
     paddingBottom: 32,
-    gap: 24,
+    gap: 28,
   },
   header: {
-    gap: 8,
+    gap: 10,
   },
   title: {
-    fontSize: 32,
+    fontSize: 44,
+    lineHeight: 44,
   },
   subtitle: {
     fontSize: 16,
+    maxWidth: 280,
   },
   segment: {
     flexDirection: 'row',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderRadius: 0,
   },
   segmentButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   form: {
-    gap: 12,
+    gap: 16,
   },
   input: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    paddingHorizontal: 0,
     paddingVertical: 12,
     fontSize: 16,
+    fontFamily: Fonts?.serifItalic ?? Fonts?.serif,
   },
   primaryButton: {
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 0,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(26,26,26,0.2)',
   },
   disabledButton: {
     opacity: 0.7,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: '#F9F8F6',
   },
   switchMode: {
     alignItems: 'center',
+    paddingTop: 4,
   },
 });

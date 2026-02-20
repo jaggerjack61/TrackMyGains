@@ -381,6 +381,34 @@ export const initDatabase = async () => {
         }
       }
 
+      // Migration to add created_at columns for legacy databases
+      const tablesWithCreatedAt = [
+        "routines",
+        "workouts",
+        "exercises",
+        "exercise_logs",
+        "diets",
+        "daily_logs",
+        "meals",
+        "cycles",
+        "compounds",
+        "cycle_compounds",
+      ];
+
+      for (const table of tablesWithCreatedAt) {
+        try {
+          await db.execAsync(
+            `ALTER TABLE ${table} ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP;`,
+          );
+          await db.execAsync(
+            `UPDATE ${table} SET created_at = COALESCE(last_modified, CURRENT_TIMESTAMP) WHERE created_at IS NULL;`,
+          );
+          console.log(`Added created_at column to ${table}`);
+        } catch (e) {
+          // Ignore error if column already exists
+        }
+      }
+
       console.log("Database initialized");
     } catch (error) {
       console.error("Error initializing database:", error);
@@ -1219,8 +1247,45 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   await executeTransaction(
     `Error bulk inserting/updating ${tableName}:`,
     async (database) => {
+      const tableInfo = await database.getAllAsync<{
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+      }>(`PRAGMA table_info(${tableName})`);
+      const nowIso = new Date().toISOString();
+      const tableColumns = new Set(tableInfo.map((column) => column.name));
+      const requiredColumnsWithoutDefault = tableInfo.filter(
+        (column) =>
+          column.name !== "id" &&
+          column.notnull === 1 &&
+          column.dflt_value === null,
+      );
+
+      const getFallbackValue = (columnName: string, columnType: string) => {
+        if (tableName === "cycles" && columnName === "is_active") {
+          return 1;
+        }
+
+        const normalizedType = (columnType || "").toUpperCase();
+
+        if (columnName === "created_at" || columnName === "last_modified") {
+          return nowIso;
+        }
+        if (normalizedType.includes("INT") || normalizedType.includes("REAL")) {
+          return 0;
+        }
+        return "";
+      };
+      const hasLegacyCyclePhase =
+        tableName === "cycles" &&
+        tableInfo.some((column) => column.name === "phase");
+
       for (const record of records) {
-        const columns = Object.keys(record).filter((key) => key !== "id");
+        const columns = Object.keys(record).filter(
+          (key) => key !== "id" && tableColumns.has(key),
+        );
         const values = columns.map((col) => record[col]);
 
         // Check if record exists
@@ -1231,17 +1296,33 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
 
         if (existing) {
           // Update existing record
-          const setClause = columns.map((col) => `${col} = ?`).join(", ");
-          await database.runAsync(
-            `UPDATE ${tableName} SET ${setClause} WHERE id = ?`,
-            ...values,
-            record.id,
-          );
+          if (columns.length > 0) {
+            const setClause = columns.map((col) => `${col} = ?`).join(", ");
+            await database.runAsync(
+              `UPDATE ${tableName} SET ${setClause} WHERE id = ?`,
+              ...values,
+              record.id,
+            );
+          }
         } else {
           // Insert new record
           const allColumns = ["id", ...columns];
-          const allPlaceholders = allColumns.map(() => "?").join(", ");
           const allValues = [record.id, ...values];
+
+          for (const requiredColumn of requiredColumnsWithoutDefault) {
+            if (allColumns.includes(requiredColumn.name)) continue;
+            allColumns.push(requiredColumn.name);
+            allValues.push(
+              getFallbackValue(requiredColumn.name, requiredColumn.type),
+            );
+          }
+
+          if (hasLegacyCyclePhase && !allColumns.includes("phase")) {
+            allColumns.push("phase");
+            allValues.push("unknown");
+          }
+
+          const allPlaceholders = allColumns.map(() => "?").join(", ");
           await database.runAsync(
             `INSERT INTO ${tableName} (${allColumns.join(", ")}) VALUES (${allPlaceholders})`,
             ...allValues,

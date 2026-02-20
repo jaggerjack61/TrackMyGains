@@ -69,7 +69,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
       setIsVisible(true);
       Animated.timing(translateX, {
         toValue: 0,
-        duration: 220,
+        duration: 520,
         useNativeDriver: true,
       }).start();
       return;
@@ -78,7 +78,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
     if (isVisible) {
       Animated.timing(translateX, {
         toValue: -drawerWidth,
-        duration: 200,
+        duration: 500,
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (finished) {
@@ -154,19 +154,20 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
 
 const styles = StyleSheet.create({
   headerContent: {
-    height: 56,
+    height: 62,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   backButton: {
-    marginRight: 16,
-    padding: 4,
+    marginRight: 14,
+    paddingVertical: 4,
+    paddingRight: 8,
   },
   title: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 30,
+    lineHeight: 32,
   },
   rightAction: {
     marginLeft: 16,
@@ -177,53 +178,66 @@ const styles = StyleSheet.create({
   },
   menuBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.28)',
   },
   menuContainer: {
     height: '100%',
-    borderRightWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
-    gap: 20,
+    borderRightWidth: 1,
+    paddingHorizontal: 24,
+    gap: 24,
   },
   menuHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(26,26,26,0.16)',
+    paddingBottom: 16,
   },
   closeButton: {
-    padding: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   menuSection: {
-    gap: 6,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(26,26,26,0.12)',
+    paddingBottom: 16,
   },
   menuLabel: {
-    fontSize: 12,
+    fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 2.4,
   },
   syncButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    paddingHorizontal: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
   },
   syncText: {
-    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 2.2,
+    fontSize: 11,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    paddingHorizontal: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
   },
   logoutText: {
-    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 2.2,
+    fontSize: 11,
   },
   buttonDisabled: {
     opacity: 0.6,

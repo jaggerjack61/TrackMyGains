@@ -1,7 +1,7 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { withAlpha } from '@/constants/theme';
+import { Fonts, withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,15 +9,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  FlatList,
-  Modal,
-  Platform,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    Platform,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
@@ -139,7 +139,7 @@ export default function TrackWeightScreen() {
       ],
       legend: ['Weight']
     };
-  }, [filteredWeights]);
+  }, [filteredWeights, tintColor]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || newDate;
@@ -157,10 +157,10 @@ export default function TrackWeightScreen() {
       {/* Date Range Picker */}
       <View style={[styles.rangeContainer, { backgroundColor: cardBackgroundColor, borderColor }]}>
         <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-          <ThemedText>Start: {startDate.toLocaleDateString()}</ThemedText>
+          <ThemedText type="label">Start: {startDate.toLocaleDateString()}</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-          <ThemedText>End: {endDate.toLocaleDateString()}</ThemedText>
+          <ThemedText type="label">End: {endDate.toLocaleDateString()}</ThemedText>
         </TouchableOpacity>
       </View>
 
@@ -219,7 +219,7 @@ export default function TrackWeightScreen() {
              color: (opacity = 1) => withAlpha(tintColor, opacity),
              labelColor: () => textColor,
              style: {
-               borderRadius: 16,
+               borderRadius: 0,
              },
              propsForDots: {
                r: "6",
@@ -230,7 +230,7 @@ export default function TrackWeightScreen() {
            bezier
            style={{
              marginVertical: 8,
-             borderRadius: 16,
+             borderRadius: 0,
            }}
            hidePointsAtIndex={graphData.labels.length > 10 ? Array.from({length: graphData.labels.length}, (_, i) => i).filter(i => i % 5 !== 0) : []}
          />
@@ -261,10 +261,10 @@ export default function TrackWeightScreen() {
 
       {/* FAB */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
+        style={[styles.fab, { backgroundColor: textColor }]}
         onPress={() => setModalVisible(true)}
       >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+        <MaterialCommunityIcons name="plus" size={28} color={backgroundColor} />
       </TouchableOpacity>
 
       {/* Modal */}
@@ -284,7 +284,7 @@ export default function TrackWeightScreen() {
                 onPress={() => setShowDatePicker(true)}
                 style={[styles.modalDateButton, { borderColor }]}
               >
-                <ThemedText>{newDate.toLocaleDateString()}</ThemedText>
+                <ThemedText type="label">{newDate.toLocaleDateString()}</ThemedText>
               </TouchableOpacity>
             </View>
 
@@ -322,13 +322,13 @@ export default function TrackWeightScreen() {
                 style={[styles.button, styles.buttonClose, { borderColor }]}
                 onPress={() => setModalVisible(false)}
               >
-                <ThemedText>Cancel</ThemedText>
+                <ThemedText type="label">Cancel</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, { backgroundColor: tintColor }]}
+                style={[styles.button, { backgroundColor: textColor }]}
                 onPress={handleAddWeight}
               >
-                <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
+                <ThemedText type="label" style={{ color: backgroundColor }}>Save</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -345,17 +345,22 @@ const styles = StyleSheet.create({
   rangeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    padding: 12,
-    margin: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 0,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
   },
   dateButton: {
-    padding: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   chartContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
   },
   noDataContainer: {
     height: 220,
@@ -363,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 120,
   },
   listItem: {
@@ -376,21 +381,23 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 12,
     opacity: 0.7,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
   },
   fab: {
     position: 'absolute',
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    right: 20,
+    right: 18,
     bottom: 100,
-    borderRadius: 28,
-    elevation: 8,
+    borderRadius: 0,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
   },
   centeredView: {
     flex: 1,
@@ -400,50 +407,59 @@ const styles = StyleSheet.create({
   },
   modalView: {
     margin: 20,
-    borderRadius: 20,
-    padding: 35,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(26,26,26,0.16)',
+    padding: 24,
     alignItems: 'stretch',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: '80%',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+    width: '86%',
   },
   modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
+    marginBottom: 18,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
+    gap: 6,
   },
   modalDateButton: {
-    padding: 10,
-    marginTop: 5,
-    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    marginTop: 2,
+    borderWidth: 0,
+    borderBottomWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 8,
+    borderRadius: 0,
   },
   input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
+    height: 44,
+    marginTop: 2,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    borderRadius: 0,
+    fontFamily: Fonts?.serifItalic ?? Fonts?.serif,
+    fontSize: 16,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 18,
+    gap: 12,
   },
   button: {
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    minWidth: 80,
+    borderRadius: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minWidth: 110,
     alignItems: 'center',
   },
   buttonClose: {
@@ -454,6 +470,6 @@ const styles = StyleSheet.create({
   iosDatePickerDone: {
     alignItems: 'flex-end',
     padding: 10,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'transparent',
   },
 });

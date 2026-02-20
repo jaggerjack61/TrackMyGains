@@ -5,37 +5,95 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#2563EB';
-const tintColorDark = '#60A5FA';
+const editorialGold = '#D4AF37';
 
 export const Colors = {
   light: {
-    text: '#0F172A',
-    mutedText: '#64748B',
-    background: '#F2F4F8',
-    surface: '#FFFFFF',
-    card: '#FFFFFF',
-    border: '#E5E7EB',
-    tint: tintColorLight,
-    tintSoft: '#EAF2FF',
-    icon: '#64748B',
-    tabIconDefault: '#94A3B8',
-    tabIconSelected: tintColorLight,
-    tabBarBackground: '#FFFFFF',
+    text: '#1A1A1A',
+    mutedText: '#6C6863',
+    background: '#F9F8F6',
+    surface: '#F9F8F6',
+    card: '#F9F8F6',
+    border: 'rgba(26, 26, 26, 0.16)',
+    tint: editorialGold,
+    tintSoft: '#EBE5DE',
+    icon: '#6C6863',
+    tabIconDefault: '#6C6863',
+    tabIconSelected: '#1A1A1A',
+    tabBarBackground: '#F9F8F6',
   },
   dark: {
-    text: '#E5E7EB',
-    mutedText: '#9CA3AF',
-    background: '#0B0E14',
-    surface: '#0F172A',
-    card: '#111827',
-    border: '#1F2937',
-    tint: tintColorDark,
-    tintSoft: '#241338',
-    icon: '#9CA3AF',
-    tabIconDefault: '#64748B',
-    tabIconSelected: tintColorDark,
-    tabBarBackground: '#0F172A',
+    text: '#F9F8F6',
+    mutedText: 'rgba(235, 229, 222, 0.74)',
+    background: '#1A1A1A',
+    surface: '#1A1A1A',
+    card: '#1A1A1A',
+    border: 'rgba(249, 248, 246, 0.16)',
+    tint: editorialGold,
+    tintSoft: 'rgba(212, 175, 55, 0.2)',
+    icon: 'rgba(235, 229, 222, 0.74)',
+    tabIconDefault: 'rgba(235, 229, 222, 0.74)',
+    tabIconSelected: '#F9F8F6',
+    tabBarBackground: '#1A1A1A',
+  },
+};
+
+export const Typography = {
+  hero: {
+    fontSize: 52,
+    lineHeight: 52,
+    letterSpacing: -1,
+  },
+  title: {
+    fontSize: 34,
+    lineHeight: 36,
+    letterSpacing: -0.6,
+  },
+  subtitle: {
+    fontSize: 23,
+    lineHeight: 30,
+    letterSpacing: -0.3,
+  },
+  body: {
+    fontSize: 16,
+    lineHeight: 26,
+  },
+  label: {
+    fontSize: 11,
+    lineHeight: 16,
+    letterSpacing: 2.6,
+  },
+  micro: {
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+  },
+};
+
+export const Radius = {
+  none: 0,
+};
+
+export const Motion = {
+  medium: 500,
+  slow: 700,
+  cinematic: 1600,
+};
+
+export const Shadows = {
+  subtle: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    elevation: 3,
   },
 };
 
@@ -53,25 +111,29 @@ export function withAlpha(hexColor: string, alpha: number) {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
+    sans: 'Inter_400Regular',
+    sansMedium: 'Inter_500Medium',
+    serif: 'PlayfairDisplay_400Regular',
+    serifItalic: 'PlayfairDisplay_400Regular_Italic',
     /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
+    rounded: 'Inter_500Medium',
     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
+    sans: 'Inter_400Regular',
+    sansMedium: 'Inter_500Medium',
+    serif: 'PlayfairDisplay_400Regular',
+    serifItalic: 'PlayfairDisplay_400Regular_Italic',
+    rounded: 'Inter_500Medium',
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    sans: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sansMedium: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    serif: "'Playfair Display', Georgia, 'Times New Roman', serif",
+    serifItalic: "'Playfair Display', Georgia, 'Times New Roman', serif",
+    rounded: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

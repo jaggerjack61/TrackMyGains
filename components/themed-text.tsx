@@ -44,27 +44,23 @@ const styles = StyleSheet.create({
   defaultSemiBold: {
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: '600',
-    fontFamily: Fonts?.sans,
+    fontFamily: Fonts?.sansMedium,
   },
   title: {
     fontSize: 34,
-    fontWeight: '800',
+    fontFamily: Fonts?.display,
     lineHeight: 40,
-    letterSpacing: -0.5,
-    fontFamily: Fonts?.rounded,
+    letterSpacing: -0.7,
   },
   subtitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: Fonts?.displayBold,
     lineHeight: 26,
-    letterSpacing: -0.2,
-    fontFamily: Fonts?.sans,
+    letterSpacing: -0.3,
   },
   link: {
     lineHeight: 22,
     fontSize: 16,
-    fontWeight: '600',
-    fontFamily: Fonts?.sans,
+    fontFamily: Fonts?.sansMedium,
   },
 });

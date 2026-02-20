@@ -2,13 +2,14 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProfileMenu } from "@/components/Header";
 import ParallaxScrollView from "@/components/parallax-scroll-view";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { SoftButton } from "@/components/ui/soft-ui";
 import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { exportDatabase, importDatabase } from "@/services/database";
@@ -17,8 +18,6 @@ import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
 export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, "mutedText");
   const tintColor = useThemeColor({}, "tint");
-  const cardColor = useThemeColor({}, "card");
-  const borderColor = useThemeColor({}, "border");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -124,18 +123,18 @@ export default function SettingsScreen() {
         }}
         headerImage={
           <View style={styles.header}>
-            <TouchableOpacity
+            <SoftButton
               onPress={() => setIsProfileOpen(true)}
               style={[
                 styles.menuButton,
                 {
-                  backgroundColor: withAlpha(tintColor, 0.16),
                   top: Math.max(insets.top, 16),
                 },
               ]}
+              contentStyle={styles.menuButtonContent}
             >
               <MaterialCommunityIcons name="menu" size={22} color={tintColor} />
-            </TouchableOpacity>
+            </SoftButton>
             <MaterialCommunityIcons
               name="cog-outline"
               size={92}
@@ -164,10 +163,7 @@ export default function SettingsScreen() {
         </ThemedText>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: cardColor, borderColor }]}
-            onPress={handleExport}
-          >
+          <SoftButton style={styles.button} contentStyle={styles.buttonContent} onPress={handleExport}>
             <MaterialCommunityIcons
               name="export"
               size={24}
@@ -180,13 +176,11 @@ export default function SettingsScreen() {
                 Save your data to a file
               </ThemedText>
             </View>
-          </TouchableOpacity>
+          </SoftButton>
 
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: cardColor, borderColor, marginTop: 12 },
-            ]}
+          <SoftButton
+            style={[styles.button, { marginTop: 12 }]}
+            contentStyle={styles.buttonContent}
             onPress={handleImport}
           >
             <MaterialCommunityIcons
@@ -201,7 +195,7 @@ export default function SettingsScreen() {
                 Restore data from a backup
               </ThemedText>
             </View>
-          </TouchableOpacity>
+          </SoftButton>
         </View>
       </ParallaxScrollView>
       <ProfileMenu
@@ -234,12 +228,13 @@ const styles = StyleSheet.create({
   menuButton: {
     position: "absolute",
     left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
     zIndex: 2,
+  },
+  menuButtonContent: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: withAlpha(Colors.light.background, 0.92),
   },
   headerText: {
     marginTop: 12,
@@ -258,18 +253,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   button: {
+  },
+  buttonContent: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    // Shadow for iOS
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    // Elevation for Android
-    elevation: 2,
   },
   buttonIcon: {
     marginRight: 16,

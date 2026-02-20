@@ -1,15 +1,16 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { getSoftShadow } from '@/constants/neumorphism';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
+  const tabShadow = getSoftShadow(theme, 'extruded');
 
   return (
     <Tabs
@@ -20,9 +21,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: Colors[theme].tabBarBackground,
-          borderColor: Colors[theme].border,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderRadius: 22,
+          borderRadius: 32,
           height: 64,
           paddingBottom: 10,
           paddingTop: 10,
@@ -31,11 +30,7 @@ export default function TabLayout() {
           left: 16,
           right: 16,
           bottom: 14,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.08,
-          shadowRadius: 18,
+          ...tabShadow.dark,
         },
       }}>
       <Tabs.Screen

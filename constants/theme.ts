@@ -5,37 +5,37 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#2563EB';
-const tintColorDark = '#60A5FA';
+const tintColorLight = '#6C63FF';
+const tintColorDark = '#8B84FF';
 
 export const Colors = {
   light: {
-    text: '#0F172A',
-    mutedText: '#64748B',
-    background: '#F2F4F8',
-    surface: '#FFFFFF',
-    card: '#FFFFFF',
-    border: '#E5E7EB',
+    text: '#3D4852',
+    mutedText: '#6B7280',
+    background: '#E0E5EC',
+    surface: '#E0E5EC',
+    card: '#E0E5EC',
+    border: 'transparent',
     tint: tintColorLight,
-    tintSoft: '#EAF2FF',
-    icon: '#64748B',
-    tabIconDefault: '#94A3B8',
+    tintSoft: '#DAD8FF',
+    icon: '#6B7280',
+    tabIconDefault: '#8D96A4',
     tabIconSelected: tintColorLight,
-    tabBarBackground: '#FFFFFF',
+    tabBarBackground: '#E0E5EC',
   },
   dark: {
-    text: '#E5E7EB',
-    mutedText: '#9CA3AF',
-    background: '#0B0E14',
-    surface: '#0F172A',
-    card: '#111827',
-    border: '#1F2937',
+    text: '#E8EEF7',
+    mutedText: '#A4B0C0',
+    background: '#1A2230',
+    surface: '#1A2230',
+    card: '#1A2230',
+    border: 'transparent',
     tint: tintColorDark,
-    tintSoft: '#241338',
-    icon: '#9CA3AF',
-    tabIconDefault: '#64748B',
+    tintSoft: '#2B3550',
+    icon: '#A4B0C0',
+    tabIconDefault: '#7A8698',
     tabIconSelected: tintColorDark,
-    tabBarBackground: '#0F172A',
+    tabBarBackground: '#1A2230',
   },
 };
 
@@ -53,25 +53,37 @@ export function withAlpha(hexColor: string, alpha: number) {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    sans: 'DM Sans Regular',
+    sansMedium: 'DM Sans Medium',
+    sansBold: 'DM Sans Bold',
+    display: 'Plus Jakarta Sans ExtraBold',
+    displayBold: 'Plus Jakarta Sans Bold',
+    displaySemiBold: 'Plus Jakarta Sans SemiBold',
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
+    sans: 'DM Sans Regular',
+    sansMedium: 'DM Sans Medium',
+    sansBold: 'DM Sans Bold',
+    display: 'Plus Jakarta Sans ExtraBold',
+    displayBold: 'Plus Jakarta Sans Bold',
+    displaySemiBold: 'Plus Jakarta Sans SemiBold',
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    sans: "'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sansMedium: "'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sansBold: "'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    display: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
+    displayBold: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
+    displaySemiBold: "'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const Radii = {
+  container: 32,
+  control: 16,
+  inner: 12,
+  full: 999,
+} as const;

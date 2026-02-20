@@ -8,6 +8,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
+import { getSoftShadow } from '@/constants/neumorphism';
+import { Radii } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -26,6 +28,7 @@ export default function ParallaxScrollView({
   const backgroundColor = useThemeColor({}, 'background');
   const surfaceColor = useThemeColor({}, 'surface');
   const colorScheme = useColorScheme() ?? 'light';
+  const shellShadow = getSoftShadow(colorScheme, 'extruded');
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollOffset = useScrollOffset(scrollRef);
   const headerAnimatedStyle = useAnimatedStyle(() => {
@@ -58,7 +61,7 @@ export default function ParallaxScrollView({
         ]}>
         {headerImage}
       </Animated.View>
-      <ThemedView style={[styles.content, { backgroundColor: surfaceColor }]}>{children}</ThemedView>
+      <ThemedView style={[styles.content, { backgroundColor: surfaceColor }, shellShadow.dark]}>{children}</ThemedView>
     </Animated.ScrollView>
   );
 }
@@ -78,7 +81,7 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
     gap: 16,
     marginTop: -28,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: Radii.container,
+    borderTopRightRadius: Radii.container,
   },
 });

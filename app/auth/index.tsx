@@ -6,6 +6,10 @@ import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { SoftButton, SoftSurface } from '@/components/ui/soft-ui';
+import { FocusRing } from '@/constants/neumorphism';
+import { Radii } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getFirebaseAuth } from '@/services/firebase';
 
@@ -17,10 +21,11 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | 'confirm' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const theme = useColorScheme() ?? 'light';
   const primaryColor = useThemeColor({}, 'tint');
-  const borderColor = useThemeColor({}, 'border');
   const cardColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const mutedTextColor = useThemeColor({}, 'mutedText');
@@ -93,11 +98,10 @@ export default function AuthScreen() {
       styles.input,
       {
         backgroundColor: cardColor,
-        borderColor,
         color: textColor,
       },
     ],
-    [cardColor, borderColor, textColor]
+    [cardColor, textColor]
   );
 
   return (
@@ -111,64 +115,83 @@ export default function AuthScreen() {
         </ThemedText>
       </View>
 
-      <View style={[styles.segment, { borderColor }]}>
-        <Pressable
-          style={[styles.segmentButton, mode === 'login' && { backgroundColor: cardColor }]}
+      <SoftSurface depth="extruded" radius={Radii.container} contentStyle={styles.segment}>
+        <SoftButton
           onPress={() => setMode('login')}
-        >
+          depth={mode === 'login' ? 'pressed' : 'extrudedSmall'}
+          activeDepth="pressedSmall"
+          style={styles.segmentButton}
+          contentStyle={styles.segmentButtonContent}>
           <ThemedText type="defaultSemiBold">Login</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.segmentButton, mode === 'register' && { backgroundColor: cardColor }]}
+        </SoftButton>
+        <SoftButton
           onPress={() => setMode('register')}
-        >
+          depth={mode === 'register' ? 'pressed' : 'extrudedSmall'}
+          activeDepth="pressedSmall"
+          style={styles.segmentButton}
+          contentStyle={styles.segmentButtonContent}>
           <ThemedText type="defaultSemiBold">Register</ThemedText>
-        </Pressable>
-      </View>
+        </SoftButton>
+      </SoftSurface>
 
       <View style={styles.form}>
-        <TextInput
-          style={inputStyle}
-          placeholder="Email"
-          placeholderTextColor={mutedTextColor}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={inputStyle}
-          placeholder="Password"
-          placeholderTextColor={mutedTextColor}
-          secureTextEntry
-          textContentType="password"
-          value={password}
-          onChangeText={setPassword}
-        />
-        {mode === 'register' ? (
+        <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'email' ? FocusRing[theme] : undefined}>
           <TextInput
             style={inputStyle}
-            placeholder="Confirm password"
+            placeholder="Email"
+            placeholderTextColor={mutedTextColor}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            value={email}
+            onFocus={() => setFocusedField('email')}
+            onBlur={() => setFocusedField(null)}
+            onChangeText={setEmail}
+          />
+        </SoftSurface>
+        <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'password' ? FocusRing[theme] : undefined}>
+          <TextInput
+            style={inputStyle}
+            placeholder="Password"
             placeholderTextColor={mutedTextColor}
             secureTextEntry
             textContentType="password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            value={password}
+            onFocus={() => setFocusedField('password')}
+            onBlur={() => setFocusedField(null)}
+            onChangeText={setPassword}
           />
+        </SoftSurface>
+        {mode === 'register' ? (
+          <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'confirm' ? FocusRing[theme] : undefined}>
+            <TextInput
+              style={inputStyle}
+              placeholder="Confirm password"
+              placeholderTextColor={mutedTextColor}
+              secureTextEntry
+              textContentType="password"
+              value={confirmPassword}
+              onFocus={() => setFocusedField('confirm')}
+              onBlur={() => setFocusedField(null)}
+              onChangeText={setConfirmPassword}
+            />
+          </SoftSurface>
         ) : null}
       </View>
 
-      <Pressable
-        style={[styles.primaryButton, { backgroundColor: primaryColor }, isDisabled && styles.disabledButton]}
+      <SoftButton
         onPress={handleSubmit}
         disabled={isDisabled}
+        depth="extruded"
+        activeDepth="pressed"
+        style={isDisabled && styles.disabledButton}
+        contentStyle={[styles.primaryButton, { backgroundColor: primaryColor }]}
       >
         <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
           {isSubmitting ? 'Please wait...' : actionLabel}
         </ThemedText>
-      </Pressable>
+      </SoftButton>
 
       <Pressable
         style={styles.switchMode}
@@ -201,27 +224,30 @@ const styles = StyleSheet.create({
   },
   segment: {
     flexDirection: 'row',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderRadius: Radii.container,
+    gap: 10,
+    padding: 10,
   },
   segmentButton: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
+  },
+  segmentButtonContent: {
+    minHeight: 46,
   },
   form: {
     gap: 12,
   },
-  input: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+  inputWell: {
     paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  input: {
+    borderRadius: 16,
     paddingVertical: 12,
     fontSize: 16,
   },
   primaryButton: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
   },
@@ -229,7 +255,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   switchMode: {
     alignItems: 'center',

@@ -1,5 +1,15 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
+import {
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from "@expo-google-fonts/plus-jakarta-sans";
+import {
     DarkTheme,
     DefaultTheme,
     ThemeProvider,
@@ -29,7 +39,15 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isSplashAnimationFinished, setIsSplashAnimationFinished] =
     useState(false);
-  const [fontsLoaded] = useFonts(MaterialCommunityIcons.font);
+  const [fontsLoaded] = useFonts({
+    ...MaterialCommunityIcons.font,
+    "DM Sans Regular": DMSans_400Regular,
+    "DM Sans Medium": DMSans_500Medium,
+    "DM Sans Bold": DMSans_700Bold,
+    "Plus Jakarta Sans SemiBold": PlusJakartaSans_600SemiBold,
+    "Plus Jakarta Sans Bold": PlusJakartaSans_700Bold,
+    "Plus Jakarta Sans ExtraBold": PlusJakartaSans_800ExtraBold,
+  });
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [hasUser, setHasUser] = useState(false);
 

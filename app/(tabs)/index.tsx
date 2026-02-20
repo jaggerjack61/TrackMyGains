@@ -2,13 +2,14 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DashboardCard } from "@/components/DashboardCard";
 import { ProfileMenu } from "@/components/Header";
 import ParallaxScrollView from "@/components/parallax-scroll-view";
 import { ThemedText } from "@/components/themed-text";
+import { SoftButton } from "@/components/ui/soft-ui";
 import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
@@ -84,18 +85,18 @@ export default function HomeScreen() {
         }}
         headerImage={
           <View style={styles.header}>
-            <TouchableOpacity
+            <SoftButton
               onPress={() => setIsProfileOpen(true)}
               style={[
                 styles.menuButton,
                 {
-                  backgroundColor: withAlpha(tintColor, 0.16),
                   top: Math.max(insets.top, 16),
                 },
               ]}
+              contentStyle={styles.menuButtonContent}
             >
               <MaterialCommunityIcons name="menu" size={22} color={tintColor} />
-            </TouchableOpacity>
+            </SoftButton>
             <MaterialCommunityIcons
               name="dumbbell"
               size={96}
@@ -133,7 +134,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/track-weight")}
           />
           <DashboardCard
-            title="Track Workouts"
+            title="Track Lifts"
             icon="dumbbell"
             onPress={() => router.push("/track-workouts")}
           />
@@ -180,12 +181,13 @@ const styles = StyleSheet.create({
   menuButton: {
     position: "absolute",
     left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
     zIndex: 2,
+  },
+  menuButtonContent: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: withAlpha(Colors.light.background, 0.92),
   },
   headerText: {
     marginTop: 12,

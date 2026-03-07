@@ -1,14 +1,14 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 import {
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
     DarkTheme,
     DefaultTheme,

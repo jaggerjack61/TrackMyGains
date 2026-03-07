@@ -1,6 +1,6 @@
 # Project State
 
-- Date: 2026-02-20
+- Date: 2026-03-07
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
 - Current focus: Neumorphism design-system foundation integrated with primary app entry flows.
 
@@ -27,3 +27,8 @@
 - Many feature tracker routes (`track-*`) still use legacy border/elevation patterns and should be migrated next in batches.
 - Full neumorphic dual-shadow fidelity is approximated in React Native via nested surfaces due no native inset shadow support.
 - Lint currently reports pre-existing warnings in untouched tracker screens (no new errors introduced).
+
+## Build Notes
+- Added `.easignore` so EAS can build from the local working tree while still uploading `google-services.json`, which is ignored by `.gitignore`.
+- Verified `eas.json` `preview` profile produces an Android APK successfully via `npx eas build -p android --profile preview` with `EAS_NO_VCS=1`.
+- Latest successful APK build completed on 2026-03-07 and was downloaded locally as `TrackMyGains-preview-20260307.apk`.

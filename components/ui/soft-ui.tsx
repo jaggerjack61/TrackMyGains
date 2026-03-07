@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  Pressable,
-  StyleSheet,
-  type PressableProps,
-  type StyleProp,
-  type ViewProps,
-  type ViewStyle,
-  View,
+    Pressable,
+    StyleSheet,
+    View,
+    type PressableProps,
+    type StyleProp,
+    type ViewProps,
+    type ViewStyle,
 } from 'react-native';
 
 import { getSoftShadow, type SoftDepth } from '@/constants/neumorphism';

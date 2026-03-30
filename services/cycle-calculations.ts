@@ -29,27 +29,6 @@ const buildPlotDates = (startDate: Date, endDate: Date, extraDays: number): Date
   return dates;
 };
 
-type CompoundType = 'injectable' | 'oral' | 'peptide';
-
-const groupCycleCompoundsByType = (compounds: CycleCompound[]): Map<CompoundType, CycleCompound[]> => {
-  const compoundMap = new Map<CompoundType, CycleCompound[]>();
-
-  for (const compound of compounds) {
-    const key: CompoundType =
-      compound.type === 'injectable' || compound.type === 'oral' || compound.type === 'peptide'
-        ? compound.type
-        : 'injectable';
-    const list = compoundMap.get(key);
-    if (list) {
-      list.push(compound);
-    } else {
-      compoundMap.set(key, [compound]);
-    }
-  }
-
-  return compoundMap;
-};
-
 const calculateRemainingAmount = (amount: number, halfLifeHours: number, hoursSinceDose: number): number => {
   return amount * Math.pow(0.5, hoursSinceDose / halfLifeHours);
 };
@@ -99,36 +78,17 @@ export const calculateCycleLevels = (
   endDate: Date
 ): CompoundSeries[] => {
   const dates = buildPlotDates(startDate, endDate, 28);
-  const compoundMap = groupCycleCompoundsByType(compounds);
 
-  const groupOrder: { type: CompoundType; name: string; colorIndex: number }[] = [
-    { type: 'injectable', name: 'Injectables', colorIndex: 0 },
-    { type: 'oral', name: 'Orals', colorIndex: 1 },
-    { type: 'peptide', name: 'Peptides', colorIndex: 2 },
-  ];
+  return compounds.map((compound, index) => {
+    const data: DataPoint[] = dates.map(date => ({
+      date: date.toISOString(),
+      value: calculateActiveAmountForCompoundAtDate(compound, date) * MG_EQUIVALENT_TO_NGDL,
+    }));
 
-  const series: CompoundSeries[] = [];
-
-  for (const group of groupOrder) {
-    const cycleCompounds = compoundMap.get(group.type);
-    if (!cycleCompounds || cycleCompounds.length === 0) continue;
-
-    const data: DataPoint[] = dates.map(date => {
-      let totalActiveAmount = 0;
-
-      for (const compound of cycleCompounds) {
-        totalActiveAmount += calculateActiveAmountForCompoundAtDate(compound, date);
-      }
-
-      return { date: date.toISOString(), value: totalActiveAmount * MG_EQUIVALENT_TO_NGDL };
-    });
-
-    series.push({
-      name: group.name,
-      color: defaultSeriesColors[group.colorIndex % defaultSeriesColors.length](1),
+    return {
+      name: compound.name,
+      color: defaultSeriesColors[index % defaultSeriesColors.length](1),
       data,
-    });
-  }
-
-  return series;
+    };
+  });
 };

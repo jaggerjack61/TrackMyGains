@@ -2,25 +2,48 @@ import { Header } from '@/components/Header';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { Dimensions, Pressable, ScrollView, SectionList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import {
+  buildCycleChartLabels,
+  calculateCycleChartWidth,
+  calculateTouchDistance,
+  getPinchAdjustedZoom,
+} from '@/services/cycle-chart';
 import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
 
 const screenWidth = Dimensions.get('window').width;
+const chartViewportWidth = screenWidth - 32;
+
+type PinchState = {
+  startDistance: number;
+  startZoom: number;
+};
 
 export default function CycleDetailScreen() {
   const { cycleId } = useLocalSearchParams();
   const [cycle, setCycle] = useState<Cycle | null>(null);
   const [compounds, setCompounds] = useState<CycleCompound[]>([]);
   const [levelFactor, setLevelFactor] = useState(0.5);
+  const [xZoom, setXZoom] = useState(1);
   const router = useRouter();
+  const pinchStateRef = useRef<PinchState | null>(null);
   
   const primaryColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
@@ -42,7 +65,7 @@ export default function CycleDetailScreen() {
     }, [loadData])
   );
 
-  const chartData = useMemo(() => {
+  const chartSeries = useMemo(() => {
     if (!cycle || compounds.length === 0) return null;
 
     const series = calculateCycleLevels(
@@ -51,41 +74,39 @@ export default function CycleDetailScreen() {
       new Date(cycle.end_date)
     );
 
-    if (series.length === 0) return null;
+    return series.length > 0 ? series : null;
+  }, [cycle, compounds]);
 
-    // We need to sample labels to avoid overcrowding
-    const dataPointsCount = series[0].data.length;
-    const labelInterval = Math.max(1, Math.floor(dataPointsCount / 6)); // Show ~6 labels
+  const chartData = useMemo(() => {
+    if (!chartSeries) return null;
 
-    const labels = series[0].data
-      .filter((_, i) => i % labelInterval === 0)
-      .map(d => {
-        const date = new Date(d.date);
-        return `${date.getDate()}/${date.getMonth() + 1}`;
-      });
+    const labels = buildCycleChartLabels(
+      chartSeries[0].data.map(point => point.date),
+      xZoom,
+    );
 
-    const datasets = series.map(s => ({
+    const datasets = chartSeries.map(s => ({
       data: s.data.map(d => d.value * levelFactor),
-      color: (opacity = 1) => s.color, // calculateCycleLevels returns rgba string, but chart kit expects function or specific color. 
-      // calculateCycleLevels returns specific color string actually? No, it returns a string.
-      // Wait, chart-kit dataset color property is optional, if provided it overrides base color.
-      // But chart-kit documentation says `color: (opacity = 1) => string`.
-      // My calculateCycleLevels returns a string like `rgba(..., 1)`.
-      // So I should wrap it.
+      color: () => s.color,
       strokeWidth: 2,
-      withDots: false, // Hide dots for smoother look if many points
+      withDots: false,
     }));
-    
-    // Legend
-    const legend = series.map(s => s.name);
 
     return {
       labels,
       datasets,
-      legend
     };
+  }, [chartSeries, levelFactor, xZoom]);
 
-  }, [cycle, compounds, levelFactor]);
+  const chartWidth = useMemo(() => {
+    if (!chartSeries) return chartViewportWidth;
+
+    return calculateCycleChartWidth(
+      chartSeries[0].data.length,
+      chartViewportWidth,
+      xZoom,
+    );
+  }, [chartSeries, xZoom]);
 
   const compoundSections = useMemo(() => {
     const groupOrder: { type: CycleCompound['type']; title: string }[] = [
@@ -106,6 +127,44 @@ export default function CycleDetailScreen() {
     await deleteCycleCompound(id);
     loadData();
   };
+
+  const clearPinchState = useCallback(() => {
+    pinchStateRef.current = null;
+  }, []);
+
+  const handleChartTouchStart = useCallback((event: GestureResponderEvent) => {
+    const touches = event.nativeEvent.touches;
+    if (touches.length < 2) return;
+
+    pinchStateRef.current = {
+      startDistance: calculateTouchDistance(touches[0], touches[1]),
+      startZoom: xZoom,
+    };
+  }, [xZoom]);
+
+  const handleChartTouchMove = useCallback((event: GestureResponderEvent) => {
+    const touches = event.nativeEvent.touches;
+    if (touches.length < 2) {
+      clearPinchState();
+      return;
+    }
+
+    const pinchState = pinchStateRef.current;
+    const currentDistance = calculateTouchDistance(touches[0], touches[1]);
+
+    if (!pinchState || pinchState.startDistance <= 0) {
+      pinchStateRef.current = {
+        startDistance: currentDistance,
+        startZoom: xZoom,
+      };
+      return;
+    }
+
+    setXZoom(getPinchAdjustedZoom(
+      pinchState.startZoom,
+      currentDistance / pinchState.startDistance,
+    ));
+  }, [clearPinchState, xZoom]);
 
   const renderCompound = ({ item }: { item: CycleCompound }) => (
     <View style={[styles.card, { backgroundColor: cardColor }]}>
@@ -167,11 +226,31 @@ export default function CycleDetailScreen() {
                   })}
                 </View>
               </View>
+              <ThemedText style={[styles.zoomHint, { color: mutedColor }]}>Pinch the chart to zoom the timeline. Current: {xZoom.toFixed(2)}x</ThemedText>
+              {!!chartSeries?.length && (
+                <View style={styles.legendSection}>
+                  <ThemedText style={[styles.legendLabel, { color: mutedColor }]}>Compounds</ThemedText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow}>
+                    {chartSeries.map(series => (
+                      <View key={series.name} style={[styles.legendItem, { borderColor: withAlpha(primaryColor, 0.16) }]}>
+                        <View style={[styles.legendSwatch, { backgroundColor: series.color }]} />
+                        <ThemedText numberOfLines={1} style={styles.legendText}>{series.name}</ThemedText>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <ThemedText style={[styles.yAxisLabel, { color: mutedColor }]}>ng/dL</ThemedText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                onTouchStart={handleChartTouchStart}
+                onTouchMove={handleChartTouchMove}
+                onTouchEnd={clearPinchState}
+                onTouchCancel={clearPinchState}>
                 <LineChart
                   data={chartData}
-                  width={Math.max(screenWidth - 32, chartData.labels.length * 50)} // Scrollable if wide
+                  width={chartWidth}
                   height={220}
                   chartConfig={{
                     backgroundColor: cardColor,
@@ -316,6 +395,11 @@ const styles = StyleSheet.create({
   factorButtonTextActive: {
     color: '#FFF',
   },
+  zoomHint: {
+    fontSize: 12,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
   yAxisLabel: {
     fontSize: 12,
     marginTop: 4,
@@ -329,6 +413,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     opacity: 0.9,
+  },
+  legendSection: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  legendLabel: {
+    fontSize: 12,
+    opacity: 0.9,
+  },
+  legendRow: {
+    gap: 10,
+    paddingRight: 12,
+  },
+  legendItem: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  legendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+  },
+  legendText: {
+    fontSize: 12,
   },
   card: {
     padding: 16,

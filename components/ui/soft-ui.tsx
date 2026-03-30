@@ -43,6 +43,7 @@ export function SoftSurface({
 }
 
 interface SoftButtonProps extends Omit<PressableProps, 'style'> {
+  children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   depth?: SoftDepth;

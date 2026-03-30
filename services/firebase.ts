@@ -8,7 +8,8 @@ import {
 import {
     Auth,
     getAuth,
-    getReactNativePersistence,
+  // @ts-expect-error Firebase exposes this in React Native bundles, but the exported type surface lags behind.
+  getReactNativePersistence,
     initializeAuth,
 } from "firebase/auth";
 import {
@@ -35,6 +36,7 @@ import {
     getWorkouts,
     initDatabase,
 } from "@/services/database";
+  import { sanitizeRecordForSync } from "@/services/sync-records";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDYCxW82L-nzn0hJP9vKbO8xf13LL1g0-0",
@@ -133,7 +135,7 @@ const mapDocs = <T extends { id: number }>(
   records.map((record) => ({
     collection: collectionName,
     id: String(record.id),
-    data: record,
+    data: sanitizeRecordForSync(collectionName, record),
   }));
 
 const collectLocalData = async () => {
@@ -461,7 +463,14 @@ const fetchFirestoreCollection = async <T extends Record<string, any>>(
     const snapshot = await getDocs(
       collection(firestore, "users", userId, collectionName),
     );
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as T);
+    return snapshot.docs.map((doc) => {
+      const record = {
+        id: doc.id,
+        ...doc.data(),
+      } as Record<string, unknown>;
+
+      return sanitizeRecordForSync(collectionName, record) as T;
+    });
   } catch (error) {
     console.error(`Error fetching ${collectionName} from Firestore:`, error);
     return [];

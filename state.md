@@ -1,6 +1,6 @@
 # Project State
 
-- Date: 2026-03-07
+- Date: 2026-03-30
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
 - Current focus: Neumorphism design-system foundation integrated with primary app entry flows.
 
@@ -28,7 +28,15 @@
 - Full neumorphic dual-shadow fidelity is approximated in React Native via nested surfaces due no native inset shadow support.
 - Lint currently reports pre-existing warnings in untouched tracker screens (no new errors introduced).
 
+## Recent Changes
+- Cycle graph now shows each compound as a separate line with a distinct color instead of grouping/summing compounds by type (injectable/oral/peptide).
+- Cycle detail graph now uses a horizontally scrollable custom legend for long compound names and pinch-based x-axis-only zoom that widens the timeline while keeping the chart horizontally scrollable.
+- Added Jest + ts-jest for testing; first test suite covers `services/cycle-calculations.ts`.
+- Bidirectional sync now sanitizes `cycle_compounds` records before push/pull so derived fields like `type` and `half_life_hours` do not get written into the SQLite table.
+- Fixed TypeScript diagnostics in `services/firebase.ts`, `components/ui/soft-ui.tsx`, and Jest test files; targeted tests and type checks are clean.
+
 ## Build Notes
 - Added `.easignore` so EAS can build from the local working tree while still uploading `google-services.json`, which is ignored by `.gitignore`.
 - Verified `eas.json` `preview` profile produces an Android APK successfully via `npx eas build -p android --profile preview` with `EAS_NO_VCS=1`.
-- Latest successful APK build completed on 2026-03-07 and was downloaded locally as `TrackMyGains-preview-20260307.apk`.
+- Latest successful APK build completed on 2026-03-30 via EAS build `12040573-69ac-4c85-9c78-b4566952b3ad`.
+- Local preview artifact is now stored as `TrackMyGains-preview-20260330.apk`.

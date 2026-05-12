@@ -14,19 +14,17 @@ export default function TrackCycleScreen() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const router = useRouter();
   const primaryColor = useThemeColor({}, 'tint');
-  const textColor = useThemeColor({}, 'text');
-  const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'card');
 
-  const loadCycles = async () => {
+  const loadCycles = useCallback(async () => {
     const data = await getCycles();
     setCycles(data);
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadCycles();
-    }, [])
+    }, [loadCycles])
   );
 
   const handleDelete = async (id: number) => {

@@ -5,7 +5,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { addMeal, deleteMeal, getDailyLogByDate, getMeals, getRecentMeals, Meal, updateMeal } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -36,19 +36,22 @@ export default function DailyLogScreen() {
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
 
-  useEffect(() => {
-    loadData();
-  }, [dietId, date]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!dietId || !date) return;
     const log = await getDailyLogByDate(Number(dietId), date);
     if (log) {
         setDailyLogId(log.id);
         const data = await getMeals(log.id);
         setMeals(data);
+    } else {
+        setDailyLogId(null);
+        setMeals([]);
     }
-  };
+  }, [dietId, date]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleNameChange = async (text: string) => {
     setName(text);

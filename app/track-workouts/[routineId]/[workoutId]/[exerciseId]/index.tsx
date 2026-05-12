@@ -7,7 +7,7 @@ import { addExerciseLog, deleteExerciseLog, ExerciseLog, getExerciseLogs, update
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -47,15 +47,15 @@ export default function ExerciseDetailScreen() {
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
 
-  useEffect(() => {
-    loadData();
-  }, [exerciseId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!exerciseId) return;
     const data = await getExerciseLogs(Number(exerciseId));
     setLogs(data);
-  };
+  }, [exerciseId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSaveLog = async () => {
     if (!weight || !reps || !sets) {

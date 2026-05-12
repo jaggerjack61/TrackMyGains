@@ -139,7 +139,11 @@ export default function TrackWeightScreen() {
       ],
       legend: ['Weight']
     };
-  }, [filteredWeights]);
+  }, [filteredWeights, tintColor]);
+
+  const sortedWeights = useMemo(() => {
+    return [...weights].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [weights]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || newDate;
@@ -243,7 +247,7 @@ export default function TrackWeightScreen() {
 
       {/* List */}
       <FlatList
-        data={[...weights].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+        data={sortedWeights}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View style={[styles.listItem, { borderBottomColor: borderColor }]}>

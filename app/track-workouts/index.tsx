@@ -6,7 +6,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { addRoutine, deleteRoutine, getRoutines, initDatabase, Routine, updateRoutine, updateRoutineOrder } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -30,17 +30,16 @@ export default function TrackWorkoutsScreen() {
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     await initDatabase();
     const data = await getRoutines();
     setRoutines(data);
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSaveRoutine = async () => {
     if (!newRoutineName.trim()) {

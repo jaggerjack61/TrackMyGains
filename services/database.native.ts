@@ -21,6 +21,7 @@ export const initDatabase = async () => {
       db = await SQLite.openDatabaseAsync("trackmygains.db");
       await db.execAsync(`
         PRAGMA journal_mode = WAL;
+        PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS weights (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           weight REAL NOT NULL,
@@ -333,21 +334,21 @@ export const initDatabase = async () => {
         await db.execAsync(
           "ALTER TABLE routines ADD COLUMN sort_order INTEGER DEFAULT 0;",
         );
-      } catch (e) {
+      } catch {
         // Ignore error if column already exists
       }
       try {
         await db.execAsync(
           "ALTER TABLE workouts ADD COLUMN sort_order INTEGER DEFAULT 0;",
         );
-      } catch (e) {
+      } catch {
         // Ignore error if column already exists
       }
       try {
         await db.execAsync(
           "ALTER TABLE diets ADD COLUMN sort_order INTEGER DEFAULT 0;",
         );
-      } catch (e) {
+      } catch {
         // Ignore error if column already exists
       }
 
@@ -376,7 +377,7 @@ export const initDatabase = async () => {
             `UPDATE ${table} SET last_modified = CURRENT_TIMESTAMP WHERE last_modified IS NULL;`,
           );
           console.log(`Added last_modified column to ${table}`);
-        } catch (e) {
+        } catch {
           // Ignore error if column already exists
         }
       }
@@ -459,8 +460,8 @@ const executeTransaction = async (
 ) => {
   try {
     const database = await requireDatabase();
-    await database.withTransactionAsync(async () => {
-      await fn(database);
+    await database.withExclusiveTransactionAsync(async (transaction) => {
+      await fn(transaction);
     });
   } catch (error) {
     console.error(errorMessage, error);

@@ -7,7 +7,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { addExercise, deleteExercise, Exercise, getExercises, initDatabase, updateExercise } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -34,18 +34,17 @@ export default function WorkoutDetailScreen() {
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
 
-  useEffect(() => {
-    loadData();
-  }, [workoutId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!workoutId) return;
     await initDatabase();
     const data = await getExercises(Number(workoutId));
     setExercises(data);
-  };
+  }, [workoutId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSaveExercise = async (name: string) => {
     const exerciseName = name.trim();

@@ -7,7 +7,7 @@ import { addDailyLog, DailyLog, deleteDailyLog, getDailyLogs, getMeals } from '@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -36,11 +36,7 @@ export default function DietDetailScreen() {
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
 
-  useEffect(() => {
-    loadData();
-  }, [dietId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!dietId) return;
     const logs = await getDailyLogs(Number(dietId));
     
@@ -57,7 +53,11 @@ export default function DietDetailScreen() {
     }));
 
     setDailyLogs(logsWithStats);
-  };
+  }, [dietId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleAddDay = async () => {
     setShowDatePicker(true);

@@ -1,6 +1,6 @@
 # Project State
 
-- Date: 2026-03-30
+- Date: 2026-05-12
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
 - Current focus: Neumorphism design-system foundation integrated with primary app entry flows.
 
@@ -26,14 +26,20 @@
 ## Current Constraints / Remaining Scope
 - Many feature tracker routes (`track-*`) still use legacy border/elevation patterns and should be migrated next in batches.
 - Full neumorphic dual-shadow fidelity is approximated in React Native via nested surfaces due no native inset shadow support.
-- Lint currently reports pre-existing warnings in untouched tracker screens (no new errors introduced).
+- Full lint, TypeScript, and Jest checks are currently clean.
 
 ## Recent Changes
+- Scanned for low-risk bug/performance fixes without adding packages; used Context7 Expo SDK 54 docs for SQLite transaction/PRAGMA behavior.
+- Added regression tests for sync payload sanitizing, web localStorage ID collisions, and native SQLite setup expectations.
+- Sync now whitelists persisted columns for every synced collection before Firestore push/pull to avoid transient or joined fields being written into SQLite/Firestore.
+- Native SQLite now enables `PRAGMA foreign_keys = ON;` and uses `withExclusiveTransactionAsync` for grouped writes so cascades and transaction ordering behave correctly.
+- Web localStorage IDs now use persisted max IDs plus `Date.now()` to avoid duplicate IDs during same-millisecond inserts.
+- Cleared tracker hook dependency and unused-variable lint warnings; memoized the weight list sort used by `FlatList`.
 - Cycle graph now shows each compound as a separate line with a distinct color instead of grouping/summing compounds by type (injectable/oral/peptide).
 - Cycle detail graph now uses a horizontally scrollable custom legend for long compound names and pinch-based x-axis-only zoom that widens the timeline while keeping the chart horizontally scrollable.
 - Added Jest + ts-jest for testing; first test suite covers `services/cycle-calculations.ts`.
 - Bidirectional sync now sanitizes `cycle_compounds` records before push/pull so derived fields like `type` and `half_life_hours` do not get written into the SQLite table.
-- Fixed TypeScript diagnostics in `services/firebase.ts`, `components/ui/soft-ui.tsx`, and Jest test files; targeted tests and type checks are clean.
+- Fixed TypeScript diagnostics in `services/firebase.ts`, `components/ui/soft-ui.tsx`, and Jest test files; current full checks are clean.
 
 ## Build Notes
 - Added `.easignore` so EAS can build from the local working tree while still uploading `google-services.json`, which is ignored by `.gitignore`.

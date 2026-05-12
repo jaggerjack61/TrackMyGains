@@ -35,13 +35,26 @@ describe('sanitizeRecordForSync', () => {
     });
   });
 
-  it('leaves collections without special handling unchanged', () => {
-    const record = {
+  it('test_sanitizeRecordForSync_workoutWithTransientField_removesNonPersistedField', () => {
+    const result = sanitizeRecordForSync('workouts', {
       id: 9,
+      routine_id: 1,
       name: 'Push Day',
+      date: '2026-03-01T12:00:00.000Z',
       created_at: '2026-03-01T00:00:00.000Z',
-    };
+      sort_order: 2,
+      last_modified: '2026-03-01T00:00:00.000Z',
+      isExpanded: true,
+    });
 
-    expect(sanitizeRecordForSync('workouts', record)).toEqual(record);
+    expect(result).toEqual({
+      id: 9,
+      routine_id: 1,
+      name: 'Push Day',
+      date: '2026-03-01T12:00:00.000Z',
+      created_at: '2026-03-01T00:00:00.000Z',
+      sort_order: 2,
+      last_modified: '2026-03-01T00:00:00.000Z',
+    });
   });
 });

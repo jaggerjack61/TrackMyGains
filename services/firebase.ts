@@ -447,7 +447,6 @@ export const stopFirestoreAutoSync = () => {
 };
 
 // Bidirectional sync functions
-type SyncDirection = "push" | "pull" | "skip";
 type SyncStats = {
   pushed: Record<string, number>;
   pulled: Record<string, number>;
@@ -515,7 +514,7 @@ const compareAndSync = async <T extends { id: number; last_modified?: string }>(
       toPush.push({
         collection: tableName,
         id: String(localRecord.id),
-        data: localRecord,
+        data: sanitizeRecordForSync(tableName, localRecord),
       });
     } else if (localRecord.last_modified && firestoreRecord.last_modified) {
       // Both exist, compare timestamps
@@ -527,7 +526,7 @@ const compareAndSync = async <T extends { id: number; last_modified?: string }>(
         toPush.push({
           collection: tableName,
           id: String(localRecord.id),
-          data: localRecord,
+          data: sanitizeRecordForSync(tableName, localRecord),
         });
       } else if (firestoreTime > localTime) {
         // Firestore is newer, pull it

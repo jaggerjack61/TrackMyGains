@@ -29,7 +29,16 @@ const saveArray = <T>(key: string, data: T[]) => {
   }
 };
 
-const nowId = (): number => Date.now();
+const nextId = (records: readonly { id?: unknown }[]): number => {
+  const currentTimestamp = Date.now();
+  const maxExistingId = records.reduce((maxId, record) => {
+    const recordId = Number(record.id);
+    if (!Number.isFinite(recordId)) return maxId;
+    return Math.max(maxId, recordId);
+  }, 0);
+
+  return currentTimestamp > maxExistingId ? currentTimestamp : maxExistingId + 1;
+};
 const nowIso = (): string => new Date().toISOString();
 
 const sortByCreatedAtDesc = (a: { created_at: string }, b: { created_at: string }) =>
@@ -42,7 +51,7 @@ export const initDatabase = async () => {
 const weights = {
   add: async (weight: number, date: string) => {
     const weights = loadArray<{ id: number; weight: number; date: string }>(STORAGE_KEYS.weights);
-    weights.push({ id: nowId(), weight, date });
+    weights.push({ id: nextId(weights), weight, date });
     saveArray(STORAGE_KEYS.weights, weights);
   },
   list: async () => {
@@ -75,7 +84,7 @@ const routines = {
   add: async (name: string) => {
     const routines = loadArray<{ id: number; name: string; created_at: string; sort_order?: number }>(STORAGE_KEYS.routines);
     const maxOrder = routines.reduce((max, r) => Math.max(max, r.sort_order ?? 0), 0);
-    routines.push({ id: nowId(), name, created_at: nowIso(), sort_order: maxOrder + 1 });
+    routines.push({ id: nextId(routines), name, created_at: nowIso(), sort_order: maxOrder + 1 });
     saveArray(STORAGE_KEYS.routines, routines);
   },
   remove: async (id: number) => {
@@ -147,7 +156,7 @@ const workouts = {
     const maxOrder = routineWorkouts.reduce((max, w) => Math.max(max, w.sort_order ?? 0), 0);
 
     workouts.push({
-      id: nowId(),
+      id: nextId(workouts),
       routine_id: routineId,
       name,
       date: nowIso(),
@@ -205,7 +214,7 @@ const exercises = {
   },
   add: async (workoutId: number, name: string) => {
     const exercises = loadArray<{ id: number; workout_id: number; name: string; created_at: string }>(STORAGE_KEYS.exercises);
-    exercises.push({ id: nowId(), workout_id: workoutId, name, created_at: nowIso() });
+    exercises.push({ id: nextId(exercises), workout_id: workoutId, name, created_at: nowIso() });
     saveArray(STORAGE_KEYS.exercises, exercises);
   },
   remove: async (id: number) => {
@@ -242,9 +251,9 @@ const exerciseLogs = {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
   add: async (exerciseId: number, date: string, weight: number, weightUnit: 'kg' | 'lbs', reps: number, sets: number) => {
-    const logs = loadArray(STORAGE_KEYS.exerciseLogs);
+    const logs = loadArray<any>(STORAGE_KEYS.exerciseLogs);
     logs.push({
-      id: nowId(),
+      id: nextId(logs),
       exercise_id: exerciseId,
       date,
       weight,
@@ -288,7 +297,7 @@ const diets = {
   add: async (name: string) => {
     const diets = loadArray<{ id: number; name: string; created_at: string; sort_order?: number }>(STORAGE_KEYS.diets);
     const maxOrder = diets.reduce((max, d) => Math.max(max, d.sort_order ?? 0), 0);
-    diets.push({ id: nowId(), name, created_at: nowIso(), sort_order: maxOrder + 1 });
+    diets.push({ id: nextId(diets), name, created_at: nowIso(), sort_order: maxOrder + 1 });
     saveArray(STORAGE_KEYS.diets, diets);
   },
   remove: async (id: number) => {
@@ -351,7 +360,7 @@ const dailyLogs = {
   },
   add: async (dietId: number, date: string) => {
     const logs = loadArray<any>(STORAGE_KEYS.dailyLogs);
-    const id = nowId();
+    const id = nextId(logs);
     logs.push({ id, diet_id: dietId, date, created_at: nowIso() });
     saveArray(STORAGE_KEYS.dailyLogs, logs);
     return id;
@@ -384,7 +393,7 @@ const meals = {
   },
   add: async (dailyLogId: number, name: string, calories: number, protein: number, carbs: number, fats: number) => {
     const meals = loadArray<any>(STORAGE_KEYS.meals);
-    meals.push({ id: nowId(), daily_log_id: dailyLogId, name, calories, protein, carbs, fats, created_at: nowIso() });
+    meals.push({ id: nextId(meals), daily_log_id: dailyLogId, name, calories, protein, carbs, fats, created_at: nowIso() });
     saveArray(STORAGE_KEYS.meals, meals);
   },
   remove: async (id: number) => {
@@ -442,7 +451,7 @@ const cycles = {
   },
   add: async (name: string, startDate: string, endDate: string) => {
     const cycles = loadArray<any>(STORAGE_KEYS.cycles);
-    cycles.push({ id: nowId(), name, start_date: startDate, end_date: endDate, created_at: nowIso() });
+    cycles.push({ id: nextId(cycles), name, start_date: startDate, end_date: endDate, created_at: nowIso() });
     saveArray(STORAGE_KEYS.cycles, cycles);
   },
   remove: async (id: number) => {
@@ -551,7 +560,7 @@ const compounds = {
   },
   add: async (name: string, type: 'injectable' | 'oral' | 'peptide', halfLifeHours: number) => {
     const compounds = loadArray<any>(STORAGE_KEYS.compounds);
-    compounds.push({ id: nowId(), name, type, half_life_hours: halfLifeHours, created_at: nowIso() });
+    compounds.push({ id: nextId(compounds), name, type, half_life_hours: halfLifeHours, created_at: nowIso() });
     saveArray(STORAGE_KEYS.compounds, compounds);
   },
 };
@@ -586,7 +595,7 @@ const cycleCompounds = {
   ) => {
     const cycleCompounds = loadArray<any>(STORAGE_KEYS.cycleCompounds);
     cycleCompounds.push({
-      id: nowId(),
+      id: nextId(cycleCompounds),
       cycle_id: cycleId,
       compound_id: compoundId,
       name,

@@ -2,14 +2,15 @@
   "expo": {
     "name": "TrackMyGains",
     "slug": "trackmygains",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/dumbell.png",
     "scheme": "trackmygains",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "2"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -20,7 +21,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jaggerjack61.TrackMyGains"
+      "package": "com.jaggerjack61.TrackMyGains",
+      "versionCode": 2
     },
     "web": {
       "output": "static",

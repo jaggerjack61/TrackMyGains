@@ -1,6 +1,6 @@
 # Project State
 
-- Date: 2026-05-12
+- Date: 2026-05-14
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
 - Current focus: Neumorphism design-system foundation integrated with primary app entry flows.
 
@@ -29,6 +29,10 @@
 - Full lint, TypeScript, and Jest checks are currently clean.
 
 ## Recent Changes
+- Release metadata bumped to app version `1.0.1`; Android `versionCode` is now `2` so the next preview APK can replace the existing installed build.
+- Chart Y-axis labels now stay fixed while timelines scroll; all chart screens use shared rounded Y-axis intervals and standardized M/D X-axis labels.
+- All chart timelines now use a shared horizontal scroll wrapper: default viewport is one month, longer histories swipe horizontally, and charts open on the latest/current month instead of the oldest data.
+- Added shared chart timeline helpers/tests in `services/chart-timeline.ts` and shared chart sizing constants in `constants/charts.ts`; weight, diet, lift/exercise, and cycle charts use the shared behavior.
 - Scanned for low-risk bug/performance fixes without adding packages; used Context7 Expo SDK 54 docs for SQLite transaction/PRAGMA behavior.
 - Added regression tests for sync payload sanitizing, web localStorage ID collisions, and native SQLite setup expectations.
 - Sync now whitelists persisted columns for every synced collection before Firestore push/pull to avoid transient or joined fields being written into SQLite/Firestore.
@@ -44,5 +48,5 @@
 ## Build Notes
 - Added `.easignore` so EAS can build from the local working tree while still uploading `google-services.json`, which is ignored by `.gitignore`.
 - Verified `eas.json` `preview` profile produces an Android APK successfully via `npx eas build -p android --profile preview` with `EAS_NO_VCS=1`.
-- Latest successful APK build completed on 2026-03-30 via EAS build `12040573-69ac-4c85-9c78-b4566952b3ad`.
-- Local preview artifact is now stored as `TrackMyGains-preview-20260330.apk`.
+- Latest successful APK build completed on 2026-05-12 via EAS build `32150e95-8bc0-4208-9626-453e997ff0f5`.
+- Local preview artifact is now stored as `TrackMyGains-preview-20260512.apk`.

@@ -1,5 +1,6 @@
-const BASE_VISIBLE_LABELS = 6;
-const BASE_POINT_WIDTH = 14;
+import { buildScrollableChartLabels, calculateScrollableChartWidth } from './chart-timeline';
+
+const BASE_VISIBLE_LABELS = 5;
 const MIN_ZOOM_LEVEL = 1;
 const MAX_ZOOM_LEVEL = 4;
 
@@ -8,34 +9,22 @@ type TouchPoint = {
   pageY: number;
 };
 
-const formatShortDate = (isoDate: string) => {
-  const date = new Date(isoDate);
-  return `${date.getDate()}/${date.getMonth() + 1}`;
-};
-
 export const buildCycleChartLabels = (dates: string[], zoomLevel: number) => {
   const safeZoomLevel = Math.max(1, zoomLevel);
-  const visibleLabelTarget = Math.max(
-    BASE_VISIBLE_LABELS,
-    Math.round(BASE_VISIBLE_LABELS * safeZoomLevel),
-  );
-  const labelInterval = Math.max(1, Math.floor(dates.length / visibleLabelTarget));
 
-  return dates.map((isoDate, index) => {
-    const isVisibleLabel = index % labelInterval === 0 || index === dates.length - 1;
-    return isVisibleLabel ? formatShortDate(isoDate) : '';
+  return buildScrollableChartLabels(dates, {
+    labelsPerVisibleRange: Math.round(BASE_VISIBLE_LABELS * safeZoomLevel),
   });
 };
 
 export const calculateCycleChartWidth = (
-  dataPointsCount: number,
+  dates: string[],
   viewportWidth: number,
   zoomLevel: number,
 ) => {
   const safeZoomLevel = Math.max(MIN_ZOOM_LEVEL, zoomLevel);
-  const pointWidth = BASE_POINT_WIDTH * safeZoomLevel;
 
-  return Math.max(viewportWidth, Math.round(dataPointsCount * pointWidth));
+  return Math.round(calculateScrollableChartWidth(dates, viewportWidth) * safeZoomLevel);
 };
 
 export const calculateTouchDistance = (

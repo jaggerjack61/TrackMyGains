@@ -14,8 +14,8 @@ describe('cycle chart helpers', () => {
     const labels = buildCycleChartLabels(sampleDates, 1);
 
     expect(labels).toHaveLength(sampleDates.length);
-    expect(labels[0]).toBe('1/3');
-    expect(labels.at(-1)).toBe('12/3');
+    expect(labels[0]).toBe('3/1');
+    expect(labels.at(-1)).toBe('3/12');
   });
 
   it('shows more visible labels as x zoom increases', () => {
@@ -26,8 +26,8 @@ describe('cycle chart helpers', () => {
   });
 
   it('increases chart width when x zoom increases', () => {
-    const baseWidth = calculateCycleChartWidth(20, 320, 1);
-    const zoomedWidth = calculateCycleChartWidth(20, 320, 3);
+    const baseWidth = calculateCycleChartWidth(sampleDates, 320, 1);
+    const zoomedWidth = calculateCycleChartWidth(sampleDates, 320, 3);
 
     expect(zoomedWidth).toBeGreaterThan(baseWidth);
   });

@@ -17,8 +17,11 @@ import { LineChart } from 'react-native-chart-kit';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import {
   buildCycleChartLabels,
   calculateCycleChartWidth,
@@ -29,7 +32,8 @@ import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
 
 const screenWidth = Dimensions.get('window').width;
-const chartViewportWidth = screenWidth - 32;
+const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 type PinchState = {
   startDistance: number;
@@ -77,11 +81,15 @@ export default function CycleDetailScreen() {
     return series.length > 0 ? series : null;
   }, [cycle, compounds]);
 
+  const chartDates = useMemo(() => {
+    return chartSeries?.[0].data.map(point => point.date) ?? [];
+  }, [chartSeries]);
+
   const chartData = useMemo(() => {
     if (!chartSeries) return null;
 
     const labels = buildCycleChartLabels(
-      chartSeries[0].data.map(point => point.date),
+      chartDates,
       xZoom,
     );
 
@@ -91,22 +99,27 @@ export default function CycleDetailScreen() {
       strokeWidth: 2,
       withDots: false,
     }));
+    const axis = buildChartYAxis(
+      datasets.flatMap(dataset => dataset.data),
+      { includeZero: true },
+    );
 
     return {
+      axis,
       labels,
-      datasets,
+      datasets: [...datasets, buildYAxisBoundsDataset(axis, labels.length)],
     };
-  }, [chartSeries, levelFactor, xZoom]);
+  }, [chartDates, chartSeries, levelFactor, xZoom]);
 
   const chartWidth = useMemo(() => {
-    if (!chartSeries) return chartViewportWidth;
+    if (chartDates.length === 0) return chartViewportWidth;
 
     return calculateCycleChartWidth(
-      chartSeries[0].data.length,
+      chartDates,
       chartViewportWidth,
       xZoom,
     );
-  }, [chartSeries, xZoom]);
+  }, [chartDates, xZoom]);
 
   const compoundSections = useMemo(() => {
     const groupOrder: { type: CycleCompound['type']; title: string }[] = [
@@ -241,9 +254,10 @@ export default function CycleDetailScreen() {
                 </View>
               )}
               <ThemedText style={[styles.yAxisLabel, { color: mutedColor }]}>ng/dL</ThemedText>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
+              <HorizontalChartScrollView
+                viewportWidth={chartViewportWidth}
+                contentWidth={chartWidth}
+                yAxis={{ labels: chartData.axis.labels, color: textColor }}
                 onTouchStart={handleChartTouchStart}
                 onTouchMove={handleChartTouchMove}
                 onTouchEnd={clearPinchState}
@@ -251,12 +265,12 @@ export default function CycleDetailScreen() {
                 <LineChart
                   data={chartData}
                   width={chartWidth}
-                  height={220}
+                  height={DEFAULT_CHART_HEIGHT}
                   chartConfig={{
                     backgroundColor: cardColor,
                     backgroundGradientFrom: cardColor,
                     backgroundGradientTo: cardColor,
-                    decimalPlaces: 0,
+                    decimalPlaces: chartData.axis.decimalPlaces,
                     color: (opacity = 1) => withAlpha(primaryColor, opacity),
                     labelColor: () => textColor,
                     style: {
@@ -270,18 +284,23 @@ export default function CycleDetailScreen() {
                     }
                   }}
                   bezier
+                  fromNumber={chartData.axis.max}
+                  fromZero={chartData.axis.min === 0}
+                  segments={chartData.axis.segments}
                   style={{
                     marginVertical: 8,
                     borderRadius: 16,
+                    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
                   }}
                   withDots={false}
+                  withHorizontalLabels={false}
                   withShadow={false}
                   withInnerLines={true}
                   withOuterLines={true}
                   withVerticalLines={false}
                 />
-              </ScrollView>
-              <ThemedText style={[styles.axisLabel, { color: mutedColor }]}>Date (D/M)</ThemedText>
+              </HorizontalChartScrollView>
+              <ThemedText style={[styles.axisLabel, { color: mutedColor }]}>Date (M/D)</ThemedText>
             </View>
           )}
         </View>

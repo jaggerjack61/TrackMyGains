@@ -1,8 +1,12 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
+import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addDailyLog, DailyLog, deleteDailyLog, getDailyLogs, getMeals } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -20,6 +24,8 @@ import {
 import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
+const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 type GraphMetric = 'calories' | 'protein' | 'carbs' | 'fats';
 
@@ -112,21 +118,20 @@ export default function DietDetailScreen() {
   const graphData = useMemo(() => {
     if (dailyLogs.length === 0) return null;
 
-    // Filter last 7 days for graph or all if less
     const sortedLogs = [...dailyLogs]
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-7);
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const labels = sortedLogs.map(l => {
-      const d = new Date(l.date);
-      return `${d.getMonth() + 1}/${d.getDate()}`;
-    });
+    const chartDates = sortedLogs.map(l => l.date);
+    const labels = buildScrollableChartLabels(chartDates);
 
     const data = sortedLogs.map(l => l.totalStats[graphMetric]);
+    const axis = buildChartYAxis(data, { includeZero: true });
 
     return {
+      axis,
+      chartWidth: calculateScrollableChartWidth(chartDates, chartViewportWidth),
       labels,
-      datasets: [{ data }],
+      datasets: [{ data }, buildYAxisBoundsDataset(axis, labels.length)],
     };
   }, [dailyLogs, graphMetric]);
 
@@ -162,26 +167,36 @@ export default function DietDetailScreen() {
               </View>
 
               {graphData ? (
-                <LineChart
-                  data={{
-                    labels: graphData.labels,
-                    datasets: graphData.datasets
-                  }}
-                  width={screenWidth - 32}
-                  height={220}
-                  chartConfig={{
-                    backgroundColor: backgroundColor,
-                    backgroundGradientFrom: backgroundColor,
-                    backgroundGradientTo: backgroundColor,
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => withAlpha(tintColor, opacity),
-                    labelColor: () => textColor,
-                    style: { borderRadius: 16 },
-                    propsForDots: { r: "4", strokeWidth: "2", stroke: tintColor }
-                  }}
-                  bezier
-                  style={{ marginVertical: 8, borderRadius: 16 }}
-                />
+                <HorizontalChartScrollView
+                  viewportWidth={chartViewportWidth}
+                  contentWidth={graphData.chartWidth}
+                  yAxis={{ labels: graphData.axis.labels, color: textColor }}
+                >
+                  <LineChart
+                    data={{
+                      labels: graphData.labels,
+                      datasets: graphData.datasets
+                    }}
+                    width={graphData.chartWidth}
+                    height={DEFAULT_CHART_HEIGHT}
+                    chartConfig={{
+                      backgroundColor: backgroundColor,
+                      backgroundGradientFrom: backgroundColor,
+                      backgroundGradientTo: backgroundColor,
+                      decimalPlaces: graphData.axis.decimalPlaces,
+                      color: (opacity = 1) => withAlpha(tintColor, opacity),
+                      labelColor: () => textColor,
+                      style: { borderRadius: 16 },
+                      propsForDots: { r: "4", strokeWidth: "2", stroke: tintColor }
+                    }}
+                    bezier
+                    fromNumber={graphData.axis.max}
+                    fromZero={graphData.axis.min === 0}
+                    segments={graphData.axis.segments}
+                    style={{ marginVertical: 8, borderRadius: 16, paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT }}
+                    withHorizontalLabels={false}
+                  />
+                </HorizontalChartScrollView>
               ) : (
                 <View style={styles.noDataContainer}>
                   <ThemedText>No data yet</ThemedText>
@@ -278,7 +293,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   noDataContainer: {
-    height: 220,
+    height: DEFAULT_CHART_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
   },

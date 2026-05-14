@@ -1,8 +1,12 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
+import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -22,6 +26,8 @@ import {
 import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
+const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 interface WeightRecord {
   id: number;
@@ -35,16 +41,6 @@ export default function TrackWeightScreen() {
   const [newWeight, setNewWeight] = useState('');
   const [newDate, setNewDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  // Filter range state
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 28); // 4 weeks ago
-    return d;
-  });
-  const [endDate, setEndDate] = useState(new Date());
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const cardBackgroundColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
@@ -103,47 +99,38 @@ export default function TrackWeightScreen() {
     ]);
   };
 
-  const filteredWeights = useMemo(() => {
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    return weights
-      .filter((w) => {
-        const d = new Date(w.date);
-        return d >= start && d <= end;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [weights, startDate, endDate]);
-
-  const graphData = useMemo(() => {
-    if (filteredWeights.length === 0) return null;
-    
-    // To avoid overcrowding X-axis, we might want to sample or format dates
-    const labels = filteredWeights.map(w => {
-      const d = new Date(w.date);
-      return `${d.getMonth() + 1}/${d.getDate()}`;
-    });
-
-    const data = filteredWeights.map(w => w.weight);
-
-    return {
-      labels: labels.length > 6 ? [labels[0], labels[Math.floor(labels.length / 2)], labels[labels.length - 1]] : labels,
-      datasets: [
-        {
-          data: data,
-          color: (opacity = 1) => withAlpha(tintColor, opacity),
-          strokeWidth: 2,
-        },
-      ],
-      legend: ['Weight']
-    };
-  }, [filteredWeights, tintColor]);
-
   const sortedWeights = useMemo(() => {
     return [...weights].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [weights]);
+
+  const chronologicalWeights = useMemo(() => {
+    return [...weights].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [weights]);
+
+  const graphData = useMemo(() => {
+    if (chronologicalWeights.length === 0) return null;
+
+    const chartDates = chronologicalWeights.map(w => w.date);
+    const labels = buildScrollableChartLabels(chartDates);
+
+    const data = chronologicalWeights.map(w => w.weight);
+    const axis = buildChartYAxis(data);
+    const visibleDatasets = [
+      {
+        data,
+        color: (opacity = 1) => withAlpha(tintColor, opacity),
+        strokeWidth: 2,
+      },
+    ];
+
+    return {
+      axis,
+      chartWidth: calculateScrollableChartWidth(chartDates, chartViewportWidth),
+      labels,
+      datasets: [...visibleDatasets, buildYAxisBoundsDataset(axis, labels.length)],
+      legend: ['Weight']
+    };
+  }, [chronologicalWeights, tintColor]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || newDate;
@@ -157,90 +144,54 @@ export default function TrackWeightScreen() {
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <Header title="Track Weight" />
-      
-      {/* Date Range Picker */}
-      <View style={[styles.rangeContainer, { backgroundColor: cardBackgroundColor, borderColor }]}>
-        <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-          <ThemedText>Start: {startDate.toLocaleDateString()}</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-          <ThemedText>End: {endDate.toLocaleDateString()}</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      {showStartDatePicker && (
-        <View>
-            <DateTimePicker
-            value={startDate}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-                if (date) setStartDate(date);
-                if (Platform.OS === 'android') setShowStartDatePicker(false);
-            }}
-            />
-            {Platform.OS === 'ios' && (
-                <TouchableOpacity onPress={() => setShowStartDatePicker(false)} style={styles.iosDatePickerDone}>
-                    <ThemedText style={{color: tintColor}}>Done</ThemedText>
-                </TouchableOpacity>
-            )}
-        </View>
-      )}
-      {showEndDatePicker && (
-        <View>
-            <DateTimePicker
-            value={endDate}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-                if (date) setEndDate(date);
-                if (Platform.OS === 'android') setShowEndDatePicker(false);
-            }}
-            />
-            {Platform.OS === 'ios' && (
-                <TouchableOpacity onPress={() => setShowEndDatePicker(false)} style={styles.iosDatePickerDone}>
-                    <ThemedText style={{color: tintColor}}>Done</ThemedText>
-                </TouchableOpacity>
-            )}
-        </View>
-      )}
 
       {/* Graph */}
       <View style={styles.chartContainer}>
         {graphData ? (
-           <LineChart
-           data={{
-             labels: graphData.labels,
-             datasets: graphData.datasets
-           }}
-           width={screenWidth - 32}
-           height={220}
-           chartConfig={{
-             backgroundColor: backgroundColor,
-             backgroundGradientFrom: backgroundColor,
-             backgroundGradientTo: backgroundColor,
-             decimalPlaces: 1,
-             color: (opacity = 1) => withAlpha(tintColor, opacity),
-             labelColor: () => textColor,
-             style: {
-               borderRadius: 16,
-             },
-             propsForDots: {
-               r: "6",
-               strokeWidth: "2",
-                stroke: tintColor,
-             }
-           }}
-           bezier
-           style={{
-             marginVertical: 8,
-             borderRadius: 16,
-           }}
-           hidePointsAtIndex={graphData.labels.length > 10 ? Array.from({length: graphData.labels.length}, (_, i) => i).filter(i => i % 5 !== 0) : []}
-         />
+          <HorizontalChartScrollView
+            viewportWidth={chartViewportWidth}
+            contentWidth={graphData.chartWidth}
+            yAxis={{ labels: graphData.axis.labels, color: textColor }}
+          >
+            <LineChart
+              data={{
+                labels: graphData.labels,
+                datasets: graphData.datasets
+              }}
+              width={graphData.chartWidth}
+              height={DEFAULT_CHART_HEIGHT}
+              chartConfig={{
+                backgroundColor: backgroundColor,
+                backgroundGradientFrom: backgroundColor,
+                backgroundGradientTo: backgroundColor,
+                decimalPlaces: graphData.axis.decimalPlaces,
+                color: (opacity = 1) => withAlpha(tintColor, opacity),
+                labelColor: () => textColor,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForDots: {
+                  r: "6",
+                  strokeWidth: "2",
+                  stroke: tintColor,
+                }
+              }}
+              bezier
+              fromNumber={graphData.axis.max}
+              fromZero={graphData.axis.min === 0}
+              segments={graphData.axis.segments}
+              style={{
+                marginVertical: 8,
+                borderRadius: 16,
+                paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
+              }}
+              withHorizontalLabels={false}
+              hidePointsAtIndex={graphData.labels.length > 10 ? Array.from({ length: graphData.labels.length }, (_, i) => i).filter(i => i % 5 !== 0) : []}
+            />
+          </HorizontalChartScrollView>
         ) : (
           <View style={styles.noDataContainer}>
-            <ThemedText>No data for selected range</ThemedText>
+            <ThemedText>No data yet</ThemedText>
           </View>
         )}
       </View>
@@ -346,23 +297,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  rangeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 12,
-    margin: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  dateButton: {
-    padding: 8,
-  },
   chartContainer: {
     alignItems: 'center',
+    marginTop: 16,
     marginBottom: 16,
   },
   noDataContainer: {
-    height: 220,
+    height: DEFAULT_CHART_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
   },

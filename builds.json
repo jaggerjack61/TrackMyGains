@@ -1,0 +1,221 @@
+﻿[
+  {
+    "id": "32150e95-8bc0-4208-9626-453e997ff0f5",
+    "status": "FINISHED",
+    "platform": "ANDROID",
+    "artifacts": {
+      "buildUrl": "https://expo.dev/artifacts/eas/7bGdQJWSTrLrnihfxmx812.apk",
+      "applicationArchiveUrl": "https://expo.dev/artifacts/eas/7bGdQJWSTrLrnihfxmx812.apk"
+    },
+    "initiatingActor": {
+      "id": "088c9261-6600-42fb-8975-f415c52f5998",
+      "displayName": "jarai.samuel"
+    },
+    "logFiles": [
+      "https://storage.googleapis.com/eas-workflows-production/logs/8b463f27-7a4e-43cd-aecf-720f304955d1/32150e95-8bc0-4208-9626-453e997ff0f5/2026-05-12T11%3A05%3A06Z-34986af3-2f71-4af5-8574-bcb5e5ea5559.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260514%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260514T075223Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=9757af0a21efef26bbabbd0b39c796e4a05f6a399e46286d3466e2cee12d83d6d14c36eb0e9485bd0392f8b5f37ed77098888b393ca6735e0753a3fb2fd5de45d31c2679efdc246e8c292a7929ca00803be1c00b4af4deb936b38ef430015945b8997932ca28f928cb4fd64af779c100da6050804d3f9bdff979fcfa7ef46097e22584c65c1bb939155bc182ca51ddaba023de16a8cd79bbc48e9faa119e458ccf9f6db8195056c2d1c5d0e8a95a41b12a03d08157aa102a6bb3bea51d6bf1b877b67833f01966cabe295787f1513bf982fa87535745ba4a8f542d96045f14379633796cc7e00dad53a5dd472e2df4c9fef28b00c09c16f9be3d3d1e07646b1c"
+    ],
+    "project": {
+      "id": "8b463f27-7a4e-43cd-aecf-720f304955d1",
+      "name": "TrackMyGains",
+      "slug": "trackmygains",
+      "ownerAccount": {
+        "id": "092a91d7-2a47-4f21-8bbb-f00b93780ac8",
+        "name": "jarai.samuel"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "sdkVersion": "54.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "priority": "NORMAL_PLUS",
+    "createdAt": "2026-05-12T11:05:02.617Z",
+    "updatedAt": "2026-05-12T15:01:38.936Z",
+    "completedAt": "2026-05-12T11:23:18.312Z",
+    "expirationDate": "2026-06-11T11:05:02.667Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 2454,
+      "buildQueueTime": 6244,
+      "buildDuration": 1086997
+    }
+  },
+  {
+    "id": "12040573-69ac-4c85-9c78-b4566952b3ad",
+    "status": "FINISHED",
+    "platform": "ANDROID",
+    "artifacts": {
+      "buildUrl": "https://expo.dev/artifacts/eas/3e2KaPCsK3KSxcAnKTVzbM.apk",
+      "applicationArchiveUrl": "https://expo.dev/artifacts/eas/3e2KaPCsK3KSxcAnKTVzbM.apk"
+    },
+    "fingerprint": {
+      "id": "019cc8c2-cc7a-7bac-8565-835c0027308d",
+      "hash": "49fc1e10c6863b6df2a87424ac88ab06c110be60"
+    },
+    "initiatingActor": {
+      "id": "088c9261-6600-42fb-8975-f415c52f5998",
+      "displayName": "jarai.samuel"
+    },
+    "logFiles": [],
+    "project": {
+      "id": "8b463f27-7a4e-43cd-aecf-720f304955d1",
+      "name": "TrackMyGains",
+      "slug": "trackmygains",
+      "ownerAccount": {
+        "id": "092a91d7-2a47-4f21-8bbb-f00b93780ac8",
+        "name": "jarai.samuel"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "sdkVersion": "54.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "priority": "NORMAL",
+    "createdAt": "2026-03-30T07:50:45.361Z",
+    "updatedAt": "2026-03-30T08:02:22.410Z",
+    "completedAt": "2026-03-30T08:02:16.035Z",
+    "expirationDate": "2026-04-29T07:50:45.412Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 188,
+      "buildQueueTime": 45118,
+      "buildDuration": 644953
+    }
+  },
+  {
+    "id": "b16773ae-38ea-40c6-ba09-1da53108f06a",
+    "status": "FINISHED",
+    "platform": "ANDROID",
+    "artifacts": {
+      "buildUrl": "https://expo.dev/artifacts/eas/nUzRAHZTDmoYuJHR2tFFPy.apk",
+      "applicationArchiveUrl": "https://expo.dev/artifacts/eas/nUzRAHZTDmoYuJHR2tFFPy.apk"
+    },
+    "fingerprint": {
+      "id": "019cc8c2-cc7a-7bac-8565-835c0027308d",
+      "hash": "49fc1e10c6863b6df2a87424ac88ab06c110be60"
+    },
+    "initiatingActor": {
+      "id": "088c9261-6600-42fb-8975-f415c52f5998",
+      "displayName": "jarai.samuel"
+    },
+    "logFiles": [],
+    "project": {
+      "id": "8b463f27-7a4e-43cd-aecf-720f304955d1",
+      "name": "TrackMyGains",
+      "slug": "trackmygains",
+      "ownerAccount": {
+        "id": "092a91d7-2a47-4f21-8bbb-f00b93780ac8",
+        "name": "jarai.samuel"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "sdkVersion": "54.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "priority": "NORMAL",
+    "createdAt": "2026-03-07T14:45:35.426Z",
+    "updatedAt": "2026-03-07T15:00:16.175Z",
+    "completedAt": "2026-03-07T15:00:13.582Z",
+    "expirationDate": "2026-04-06T14:45:35.468Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 212,
+      "buildQueueTime": 48213,
+      "buildDuration": 829205
+    }
+  },
+  {
+    "id": "63a208f6-27d6-4489-b874-68c30148012f",
+    "status": "ERRORED",
+    "platform": "ANDROID",
+    "error": {
+      "errorCode": "EAS_BUILD_MISSING_GOOGLE_SERVICES_JSON_ERROR",
+      "message": "\"google-services.json\" is missing, make sure that the file exists. Remember that EAS Build only uploads the files tracked by git. Use EAS environment variables to provide EAS Build with the file.",
+      "docsUrl": "https://docs.expo.dev/eas/environment-variables/#file-environment-variables"
+    },
+    "artifacts": {},
+    "fingerprint": {
+      "id": "019cc8b3-6b0f-7f61-9c70-3f9ed010fd5d",
+      "hash": "5754ba7d8bd7d75b4ae1c30768d16962a77fd520"
+    },
+    "initiatingActor": {
+      "id": "088c9261-6600-42fb-8975-f415c52f5998",
+      "displayName": "jarai.samuel"
+    },
+    "logFiles": [],
+    "project": {
+      "id": "8b463f27-7a4e-43cd-aecf-720f304955d1",
+      "name": "TrackMyGains",
+      "slug": "trackmygains",
+      "ownerAccount": {
+        "id": "092a91d7-2a47-4f21-8bbb-f00b93780ac8",
+        "name": "jarai.samuel"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "sdkVersion": "54.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "gitCommitHash": "70b1d0dee5783128bfffcad5db7bc15cbbb706fb",
+    "gitCommitMessage": "feat: integrate neumorphic design system foundation",
+    "priority": "NORMAL",
+    "createdAt": "2026-03-07T14:41:54.414Z",
+    "updatedAt": "2026-03-07T14:43:16.147Z",
+    "completedAt": "2026-03-07T14:43:09.750Z",
+    "expirationDate": "2026-04-06T14:41:54.443Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 88,
+      "buildQueueTime": 46974,
+      "buildDuration": 27889
+    }
+  },
+  {
+    "id": "3879e95d-0093-44c8-8592-a1f03f165ddf",
+    "status": "ERRORED",
+    "platform": "ANDROID",
+    "error": {
+      "errorCode": "EAS_BUILD_MISSING_GOOGLE_SERVICES_JSON_ERROR",
+      "message": "\"google-services.json\" is missing, make sure that the file exists. Remember that EAS Build only uploads the files tracked by git. Use EAS environment variables to provide EAS Build with the file.",
+      "docsUrl": "https://docs.expo.dev/eas/environment-variables/#file-environment-variables"
+    },
+    "artifacts": {},
+    "fingerprint": {
+      "id": "019cc8b3-6b0f-7f61-9c70-3f9ed010fd5d",
+      "hash": "5754ba7d8bd7d75b4ae1c30768d16962a77fd520"
+    },
+    "initiatingActor": {
+      "id": "088c9261-6600-42fb-8975-f415c52f5998",
+      "displayName": "jarai.samuel"
+    },
+    "logFiles": [],
+    "project": {
+      "id": "8b463f27-7a4e-43cd-aecf-720f304955d1",
+      "name": "TrackMyGains",
+      "slug": "trackmygains",
+      "ownerAccount": {
+        "id": "092a91d7-2a47-4f21-8bbb-f00b93780ac8",
+        "name": "jarai.samuel"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "sdkVersion": "54.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "priority": "NORMAL",
+    "createdAt": "2026-03-07T14:34:23.651Z",
+    "updatedAt": "2026-03-07T14:35:39.677Z",
+    "completedAt": "2026-03-07T14:35:37.268Z",
+    "expirationDate": "2026-04-06T14:34:23.681Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 95,
+      "buildQueueTime": 43938,
+      "buildDuration": 29199
+    }
+  }
+]

@@ -106,6 +106,45 @@ npm run lint       # ESLint checks
 npm run reset-project  # Replace starter code with a blank app/ folder
 ```
 
+## EAS Build Commands
+
+### Build APK (Returns Build ID)
+
+Starts an EAS Android build and prints the Build ID to stdout.
+
+```bash
+# Default: preview profile
+npm run build-apk
+
+# Custom profile
+npm run build-apk -- -Profile "production"
+```
+
+### Download APK (Polls & Downloads)
+
+Polls an EAS build every 5 minutes and downloads the APK once finished.
+
+```bash
+# Basic usage (uses default output path)
+npm run download-apk -- -BuildId "<your-build-id>"
+
+# Specify output path
+npm run download-apk -- -BuildId "<your-build-id>" -OutputPath ".\TrackMyGains-preview.apk"
+
+# Change poll interval (default: 5 minutes)
+npm run download-apk -- -BuildId "<your-build-id>" -PollIntervalMinutes 2
+```
+
+### Full Pipeline (Build + Download)
+
+```powershell
+# PowerShell: build then auto-download
+$buildId = npm run build-apk --silent
+npm run download-apk -- -BuildId $buildId -OutputPath ".\TrackMyGains-preview.apk"
+```
+
+**Note:** Always use `--` before script arguments when running via `npm run` so npm forwards them correctly to the PowerShell scripts.
+
 ## Requirements
 
 - Node.js and npm

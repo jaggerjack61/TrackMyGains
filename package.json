@@ -8,7 +8,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build-apk": "node ./scripts/launch.js build-apk.ps1",
+    "download-apk": "node ./scripts/launch.js download-eas-apk.ps1"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",

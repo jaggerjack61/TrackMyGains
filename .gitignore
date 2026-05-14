@@ -43,3 +43,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# EAS build temp output
+scripts/.eas-build-output.json

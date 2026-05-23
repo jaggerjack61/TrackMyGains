@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { getApkVersionDate, setApkVersionDate } from "@/services/database";
@@ -21,8 +21,14 @@ export interface UpdateResult {
 }
 
 interface UpdateCheckOptions {
-  autoDownload?: boolean;
   reportUnsupportedRuntime?: boolean;
+}
+
+interface ConfirmationOptions {
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText: string;
 }
 
 const APK_MIME_TYPE = "application/vnd.android.package-archive";
@@ -40,6 +46,47 @@ const isExpoGoRuntime = () =>
 
 const isNativeApkUpdaterSupported = () =>
   Platform.OS === "android" && !isExpoGoRuntime();
+
+const showConfirmationAlert = ({
+  title,
+  message,
+  confirmText,
+  cancelText,
+}: ConfirmationOptions) =>
+  new Promise<boolean>((resolve) => {
+    let hasResolved = false;
+    const finish = (value: boolean) => {
+      if (hasResolved) return;
+      hasResolved = true;
+      resolve(value);
+    };
+
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: cancelText, style: "cancel", onPress: () => finish(false) },
+        { text: confirmText, onPress: () => finish(true) },
+      ],
+      { cancelable: true, onDismiss: () => finish(false) },
+    );
+  });
+
+const promptForUpdateDownload = (versionDate: string) =>
+  showConfirmationAlert({
+    title: "Update Available",
+    message: `TrackMyGains update ${versionDate} is available. Download it now?`,
+    confirmText: "Download Update",
+    cancelText: "Not Now",
+  });
+
+const promptForUpdateInstall = (versionDate: string) =>
+  showConfirmationAlert({
+    title: "Update Downloaded",
+    message: `TrackMyGains update ${versionDate} finished downloading. Install it now?`,
+    confirmText: "Install Update",
+    cancelText: "Later",
+  });
 
 const fetchLatestRemoteApk = async () => {
   const response = await fetch(CONTENTS_API_URL, {
@@ -166,12 +213,7 @@ export const checkForUpdates = async (
       return { updateAvailable: false };
     }
 
-    const result = toUpdateResult(latest);
-    if (options.autoDownload && result.downloadUrl && result.versionDate) {
-      const error = await downloadAndInstallApk(result.downloadUrl, result.versionDate);
-      return error ? { updateAvailable: false, error } : result;
-    }
-    return result;
+    return toUpdateResult(latest);
   } catch (error: any) {
     console.error("[App Updates] Check failed:", error);
     return { updateAvailable: false, error: error?.message ?? "Unknown error" };
@@ -191,6 +233,8 @@ export const downloadAndInstallApk = async (
     await showUpdateFoundNotification();
     const downloadedPath = await downloadApkWithDownloadManager(downloadUrl, fileName);
     await setApkVersionDate(versionDate, fileName);
+    const shouldInstall = await promptForUpdateInstall(versionDate);
+    if (!shouldInstall) return null;
     try {
       await promptInstallApk(downloadedPath);
     } catch (error: any) {
@@ -205,6 +249,21 @@ export const downloadAndInstallApk = async (
   }
 };
 
+export const promptForUpdateIfAvailable = async (
+  options: UpdateCheckOptions = {},
+): Promise<UpdateResult> => {
+  const result = await checkForUpdates(options);
+  if (result.error || !result.updateAvailable || !result.downloadUrl || !result.versionDate) {
+    return result;
+  }
+
+  const shouldDownload = await promptForUpdateDownload(result.versionDate);
+  if (!shouldDownload) return result;
+
+  const error = await downloadAndInstallApk(result.downloadUrl, result.versionDate);
+  return error ? { ...result, updateAvailable: false, error } : result;
+};
+
 export const manualCheckForUpdates = async (): Promise<UpdateResult> => {
-  return checkForUpdates({ autoDownload: true, reportUnsupportedRuntime: true });
+  return promptForUpdateIfAvailable({ reportUnsupportedRuntime: true });
 };

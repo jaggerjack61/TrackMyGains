@@ -20,11 +20,11 @@
 - Added `getApkVersionDate()` / `setApkVersionDate()` helpers in all database layers.
 - Native SQLite helper operations are serialized through a queue to avoid overlapping update-check and sync queries releasing shared native statement handles.
 - Pure APK update helpers in `services/app-update-metadata.ts`: filename regex, date parsing, latest selection, GitHub API response parsing.
-- `services/app-updates.ts`: fire-and-forget startup auto-download, manual check, Android DownloadManager download via `react-native-blob-util`, update-found local notification, content URI installer launch via `expo-intent-launcher`.
+- `services/app-updates.ts`: startup/manual update check prompts before downloading, uses Android DownloadManager via `react-native-blob-util`, then prompts again before launching the APK installer via `expo-intent-launcher`.
 - APK updater now detects Expo Go (`ExecutionEnvironment.StoreClient`) before native updater imports; startup is quiet there and manual checks report that a preview/development build is required.
 - ProfileMenu gains "Check for Updates" button (Android only, hidden on other platforms).
 - Added `expo-notifications`, `expo-intent-launcher`, `expo-application`, and `react-native-blob-util`; `app.json` has install and notification permissions.
-- All 60 service tests pass; lint, `tsc --noEmit`, and Android bundle export are clean.
+- All 61 service tests pass; lint, `tsc --noEmit`, and Android bundle export are clean.
 
 ## Build Notes
 - APK naming convention: `TrackMyGains-preview-YYYYMMDD.apk` in repo root.

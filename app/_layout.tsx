@@ -30,7 +30,7 @@ import {
     startFirestoreAutoSync,
     stopFirestoreAutoSync,
 } from "@/services/firebase";
-import { checkForUpdates } from "@/services/app-updates";
+import { promptForUpdateIfAvailable } from "@/services/app-updates";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -71,7 +71,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!isSplashAnimationFinished || !isAuthResolved) return;
-    void checkForUpdates({ autoDownload: true });
+    void promptForUpdateIfAvailable();
   }, [isSplashAnimationFinished, isAuthResolved]);
 
   if (!fontsLoaded) {

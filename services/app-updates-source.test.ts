@@ -9,10 +9,20 @@ const readRootLayoutSource = () =>
   readFileSync(join(__dirname, '..', 'app', '_layout.tsx'), 'utf8');
 
 describe('app update source', () => {
-  it('test_startupUpdateCheck_autoDownloadsWhenUpdateFound', () => {
+  it('test_startupUpdateCheck_promptsBeforeDownloadWhenUpdateFound', () => {
     const source = readRootLayoutSource();
 
-    expect(source).toContain('checkForUpdates({ autoDownload: true })');
+    expect(source).not.toContain('checkForUpdates({ autoDownload: true })');
+    expect(source).toContain('promptForUpdateIfAvailable()');
+  });
+
+  it('test_updateFlow_promptsBeforeDownloadAndBeforeInstall', () => {
+    const source = readUpdatesSource();
+
+    expect(source).toContain('promptForUpdateDownload');
+    expect(source).toContain('Download Update');
+    expect(source).toContain('promptForUpdateInstall');
+    expect(source).toContain('Install Update');
   });
 
   it('test_downloadAndInstallApk_androidInstaller_usesContentUri', () => {

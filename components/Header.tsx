@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -62,6 +62,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync, onCheckU
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const canCheckUpdates = Platform.OS === 'android' && onCheckUpdates;
 
   useEffect(() => {
     if (isOpen) {
@@ -149,7 +150,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync, onCheckU
                 {isSyncing ? 'Syncing...' : 'Sync Now'}
               </ThemedText>
             </SoftButton>
-            {onCheckUpdates && (
+            {canCheckUpdates && (
               <SoftButton
                 style={isCheckingUpdates && styles.buttonDisabled}
                 onPress={handleCheckUpdates}

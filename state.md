@@ -1,52 +1,31 @@
 # Project State
 
-- Date: 2026-05-14
+- Date: 2026-05-23
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
-- Current focus: Neumorphism design-system foundation integrated with primary app entry flows.
+- Current focus: Auth routing fix, Android APK self-update support
 
 ## Stack + Architecture Snapshot
-- UI stack: React Native + Expo Router (file-based routes), TypeScript, `StyleSheet.create` inline RN styles (no Tailwind/nativewind).
-- Theming model: centralized tokens in `constants/theme.ts` via `Colors.light` / `Colors.dark` + `useThemeColor` hook.
-- Core primitives: `components/themed-text.tsx`, `components/themed-view.tsx`, `components/parallax-scroll-view.tsx`, `components/DashboardCard.tsx`, `components/Header.tsx`.
-- Navigation theming: `app/_layout.tsx` bridges app tokens into React Navigation theme.
-
-## Existing Design Tokens
-- Colors currently include: `background`, `surface`, `card`, `border`, `text`, `mutedText`, `tint`, `tintSoft`, icon/tab variants.
-- Typography currently uses system font mappings via `Fonts` object; no custom loaded display/body font families yet.
-- Shape/shadow style currently: moderate radius (14-28), border usage, and conventional elevation/shadows.
+- UI: React Native + Expo Router, TypeScript, StyleSheet (no Tailwind)
+- Theming: centralized tokens in `constants/theme.ts`
+- Auth: Firebase Auth, root layout owns the auth state guard
+- Persistence: SQLite via `expo-sqlite` + Firestore sync
+- Updater: Android-only, checks `main` branch root for `TrackMyGains-preview-YYYYMMDD.apk`
 
 ## Implemented in This Pass
-- Added neumorphic theme token updates in `constants/theme.ts` (cool-grey palette, transparent borders, radius tokens, typography mapping).
-- Added reusable depth helpers in `constants/neumorphism.ts`.
-- Added reusable primitives in `components/ui/soft-ui.tsx` (`SoftSurface`, `SoftButton`).
-- Loaded fonts in `app/_layout.tsx`: DM Sans + Plus Jakarta Sans via Expo Google Fonts.
-- Updated shared primitives: `components/themed-text.tsx`, `components/DashboardCard.tsx`, `components/Header.tsx`, `components/parallax-scroll-view.tsx`, `app/(tabs)/_layout.tsx`.
-- Updated primary screens: `app/auth/index.tsx`, `app/modal.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/settings.tsx`.
-
-## Current Constraints / Remaining Scope
-- Many feature tracker routes (`track-*`) still use legacy border/elevation patterns and should be migrated next in batches.
-- Full neumorphic dual-shadow fidelity is approximated in React Native via nested surfaces due no native inset shadow support.
-- Full lint, TypeScript, and Jest checks are currently clean.
-
-## Recent Changes
-- Release metadata bumped to app version `1.0.1`; Android `versionCode` is now `2` so the next preview APK can replace the existing installed build.
-- Chart Y-axis labels now stay fixed while timelines scroll; all chart screens use shared rounded Y-axis intervals and standardized M/D X-axis labels.
-- All chart timelines now use a shared horizontal scroll wrapper: default viewport is one month, longer histories swipe horizontally, and charts open on the latest/current month instead of the oldest data.
-- Added shared chart timeline helpers/tests in `services/chart-timeline.ts` and shared chart sizing constants in `constants/charts.ts`; weight, diet, lift/exercise, and cycle charts use the shared behavior.
-- Scanned for low-risk bug/performance fixes without adding packages; used Context7 Expo SDK 54 docs for SQLite transaction/PRAGMA behavior.
-- Added regression tests for sync payload sanitizing, web localStorage ID collisions, and native SQLite setup expectations.
-- Sync now whitelists persisted columns for every synced collection before Firestore push/pull to avoid transient or joined fields being written into SQLite/Firestore.
-- Native SQLite now enables `PRAGMA foreign_keys = ON;` and uses `withExclusiveTransactionAsync` for grouped writes so cascades and transaction ordering behave correctly.
-- Web localStorage IDs now use persisted max IDs plus `Date.now()` to avoid duplicate IDs during same-millisecond inserts.
-- Cleared tracker hook dependency and unused-variable lint warnings; memoized the weight list sort used by `FlatList`.
-- Cycle graph now shows each compound as a separate line with a distinct color instead of grouping/summing compounds by type (injectable/oral/peptide).
-- Cycle detail graph now uses a horizontally scrollable custom legend for long compound names and pinch-based x-axis-only zoom that widens the timeline while keeping the chart horizontally scrollable.
-- Added Jest + ts-jest for testing; first test suite covers `services/cycle-calculations.ts`.
-- Bidirectional sync now sanitizes `cycle_compounds` records before push/pull so derived fields like `type` and `half_life_hours` do not get written into the SQLite table.
-- Fixed TypeScript diagnostics in `services/firebase.ts`, `components/ui/soft-ui.tsx`, and Jest test files; current full checks are clean.
+- Root layout now uses Expo Router `Stack.Protected` guards, removing `initialRouteName` and `unstable_settings.anchor` so authenticated routes cannot leave login beneath the dashboard.
+- Root protected routes use concrete Expo Router screen names for leaf routes (`track-diet/index`, `track-weight/index`, `track-workouts/index`, etc.) to avoid layout-child warnings.
+- Auth screen no longer subscribes to `onAuthStateChanged` or imperatively `router.replace`; the root guard handles all auth→app transitions.
+- Tab screens (`index`, `settings`) no longer call `router.replace("/auth")` on logout; root guard routes to auth after `signOut`.
+- Added local-only `apks` table in SQLite with `version_date` column (not synced to Firestore).
+- Added `getApkVersionDate()` / `setApkVersionDate()` helpers in all database layers.
+- Native SQLite helper operations are serialized through a queue to avoid overlapping update-check and sync queries releasing shared native statement handles.
+- Pure APK update helpers in `services/app-update-metadata.ts`: filename regex, date parsing, latest selection, GitHub API response parsing.
+- `services/app-updates.ts`: fire-and-forget startup auto-download, manual check, Android DownloadManager download via `react-native-blob-util`, update-found local notification, content URI installer launch via `expo-intent-launcher`.
+- ProfileMenu gains "Check for Updates" button (Android only, hidden on other platforms).
+- Added `expo-notifications`, `expo-intent-launcher`, `expo-application`, and `react-native-blob-util`; `app.json` has install and notification permissions.
+- All 59 service tests pass; lint, `tsc --noEmit`, and Android bundle export are clean.
 
 ## Build Notes
-- Added `.easignore` so EAS can build from the local working tree while still uploading `google-services.json`, which is ignored by `.gitignore`.
-- Verified `eas.json` `preview` profile produces an Android APK successfully via `npx eas build -p android --profile preview` with `EAS_NO_VCS=1`.
-- Latest successful APK build completed on 2026-05-12 via EAS build `32150e95-8bc0-4208-9626-453e997ff0f5`.
-- Local preview artifact is now stored as `TrackMyGains-preview-20260512.apk`.
+- APK naming convention: `TrackMyGains-preview-YYYYMMDD.apk` in repo root.
+- The update source is the repo root on `main`, not GitHub Releases.
+- Requires a rebuilt APK to validate DownloadManager/install intents (cannot test in Expo Go).

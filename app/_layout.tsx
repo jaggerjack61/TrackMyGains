@@ -30,10 +30,7 @@ import {
     startFirestoreAutoSync,
     stopFirestoreAutoSync,
 } from "@/services/firebase";
-
-export const unstable_settings = {
-  anchor: "auth/index",
-};
+import { checkForUpdates } from "@/services/app-updates";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -57,12 +54,10 @@ export default function RootLayout() {
       setHasUser(Boolean(user));
       setIsAuthResolved(true);
       if (user) {
-        // Run initial bidirectional sync on login
         console.log(
           "[App] User logged in, starting initial bidirectional sync...",
         );
         await bidirectionalSync({ force: true });
-        // Then start periodic auto-sync
         startFirestoreAutoSync();
       } else {
         stopFirestoreAutoSync();
@@ -73,6 +68,11 @@ export default function RootLayout() {
       stopFirestoreAutoSync();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSplashAnimationFinished || !isAuthResolved) return;
+    void checkForUpdates({ autoDownload: true });
+  }, [isSplashAnimationFinished, isAuthResolved]);
 
   if (!fontsLoaded) {
     return null;
@@ -99,18 +99,28 @@ export default function RootLayout() {
     },
   };
 
-  const initialRouteName = hasUser ? "(tabs)" : "auth/index";
-
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack initialRouteName={initialRouteName}>
-        <Stack.Screen name="auth/index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="track-cycle" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
+      <Stack>
+        <Stack.Protected guard={hasUser}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="track-cycle" options={{ headerShown: false }} />
+          <Stack.Screen name="track-diet/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-diet/[dietId]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-diet/[dietId]/[date]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-weight/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-workouts/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-workouts/[routineId]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-workouts/[routineId]/[workoutId]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="track-workouts/[routineId]/[workoutId]/[exerciseId]/index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: "modal", title: "Modal" }}
+          />
+        </Stack.Protected>
+        <Stack.Protected guard={!hasUser}>
+          <Stack.Screen name="auth/index" options={{ headerShown: false }} />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

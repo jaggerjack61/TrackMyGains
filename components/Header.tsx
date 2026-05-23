@@ -20,6 +20,7 @@ interface ProfileMenuProps {
   email: string | null;
   onLogout: () => void;
   onSync: () => Promise<void>;
+  onCheckUpdates?: () => Promise<void>;
 }
 
 export function Header({ title, showBack = true, rightAction }: HeaderProps) {
@@ -48,7 +49,7 @@ export function Header({ title, showBack = true, rightAction }: HeaderProps) {
   );
 }
 
-export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: ProfileMenuProps) {
+export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync, onCheckUpdates }: ProfileMenuProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const cardColor = useThemeColor({}, 'card');
@@ -60,6 +61,7 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
   const translateX = useRef(new Animated.Value(-drawerWidth)).current;
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -92,6 +94,16 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
       await onSync();
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    if (isCheckingUpdates || !onCheckUpdates) return;
+    setIsCheckingUpdates(true);
+    try {
+      await onCheckUpdates();
+    } finally {
+      setIsCheckingUpdates(false);
     }
   };
 
@@ -137,6 +149,19 @@ export function ProfileMenu({ isOpen, onClose, email, onLogout, onSync }: Profil
                 {isSyncing ? 'Syncing...' : 'Sync Now'}
               </ThemedText>
             </SoftButton>
+            {onCheckUpdates && (
+              <SoftButton
+                style={isCheckingUpdates && styles.buttonDisabled}
+                onPress={handleCheckUpdates}
+                disabled={isCheckingUpdates}
+                contentStyle={styles.rowButton}
+              >
+                <MaterialCommunityIcons name="update" size={20} color={tintColor} />
+                <ThemedText style={[styles.syncText, { color: tintColor }]}>
+                  {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
+                </ThemedText>
+              </SoftButton>
+            )}
             <SoftButton onPress={onLogout} contentStyle={[styles.rowButton, { backgroundColor: tintSoft }]}>
               <MaterialCommunityIcons name="logout" size={20} color={tintColor} />
               <ThemedText style={[styles.logoutText, { color: tintColor }]}>Logout</ThemedText>

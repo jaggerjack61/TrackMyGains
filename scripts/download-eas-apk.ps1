@@ -27,7 +27,7 @@ param(
     [string]$BuildId,
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputPath = ".\TrackMyGains-preview.apk",
+    [string]$OutputPath = ".\TrackMyGains-preview-$(Get-Date -Format 'yyyyMMdd').apk",
 
     [Parameter(Mandatory = $false)]
     [int]$PollIntervalMinutes = 5

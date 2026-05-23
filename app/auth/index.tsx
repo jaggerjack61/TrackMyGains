@@ -1,7 +1,6 @@
-import { useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import React, { useEffect, useMemo, useState } from 'react';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -16,7 +15,6 @@ import { getFirebaseAuth } from '@/services/firebase';
 type AuthMode = 'login' | 'register';
 
 export default function AuthScreen() {
-  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,16 +32,6 @@ export default function AuthScreen() {
   const subtitleText = mode === 'login' ? 'Login to continue' : 'Register to start tracking';
   const actionLabel = mode === 'login' ? 'Login' : 'Create Account';
   const isDisabled = isSubmitting;
-
-  useEffect(() => {
-    const auth = getFirebaseAuth();
-    const unsubscribe = onAuthStateChanged(auth, user => {
-      if (user) {
-        router.replace('/(tabs)');
-      }
-    });
-    return unsubscribe;
-  }, [router]);
 
   const getAuthErrorMessage = (error: unknown) => {
     if (error instanceof FirebaseError) {
@@ -85,7 +73,6 @@ export default function AuthScreen() {
       } else {
         await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
-      router.replace('/(tabs)');
     } catch (error) {
       Alert.alert('Authentication failed', getAuthErrorMessage(error));
     } finally {

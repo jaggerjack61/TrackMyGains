@@ -254,3 +254,10 @@ export declare const bulkInsertOrUpdate: <T extends Record<string, any>>(
   records: T[],
 ) => Promise<void>;
 export declare const clearTable: (tableName: string) => Promise<void>;
+
+// APK metadata (local-only, not synced to Firestore)
+export declare const getApkVersionDate: () => Promise<string | null>;
+export declare const setApkVersionDate: (
+  versionDate: string,
+  fileName?: string,
+) => Promise<void>;

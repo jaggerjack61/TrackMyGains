@@ -13,6 +13,7 @@ import { SoftButton } from "@/components/ui/soft-ui";
 import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
+import { manualCheckForUpdates } from "@/services/app-updates";
 
 export default function HomeScreen() {
   const mutedTextColor = useThemeColor({}, "mutedText");
@@ -35,7 +36,6 @@ export default function HomeScreen() {
       const auth = getFirebaseAuth();
       await signOut(auth);
       setIsProfileOpen(false);
-      router.replace("/auth");
     } catch (error: any) {
       Alert.alert("Logout failed", error?.message ?? "Please try again.");
     }
@@ -74,6 +74,15 @@ export default function HomeScreen() {
       return;
     }
     Alert.alert("Sync failed", "Please try again.");
+  };
+
+  const handleCheckUpdates = async () => {
+    const result = await manualCheckForUpdates();
+    if (result.error) {
+      Alert.alert("Update check failed", result.error);
+    } else if (!result.updateAvailable) {
+      Alert.alert("No updates", "You have the latest version.");
+    }
   };
 
   return (
@@ -156,6 +165,7 @@ export default function HomeScreen() {
         email={userEmail}
         onLogout={handleLogout}
         onSync={handleSync}
+        onCheckUpdates={handleCheckUpdates}
       />
     </>
   );

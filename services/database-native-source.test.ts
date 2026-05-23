@@ -17,4 +17,24 @@ describe('database.native source', () => {
 
     expect(source).toContain('withExclusiveTransactionAsync');
   });
+
+  it('test_databaseOperations_nativeSqliteWork_isSerialized', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('databaseOperationQueue');
+    expect(source).toContain('queueDatabaseOperation');
+  });
+
+  it('test_initDatabase_createsApksTable_withVersionDate', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('CREATE TABLE IF NOT EXISTS apks');
+    expect(source).toContain('version_date TEXT NOT NULL');
+  });
+
+  it('test_initDatabase_apksTable_noLastModifiedSyncMarker', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).not.toContain('apks.last_modified');
+  });
 });

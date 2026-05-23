@@ -1,5 +1,4 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
@@ -14,11 +13,11 @@ import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { exportDatabase, importDatabase } from "@/services/database";
 import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
+import { manualCheckForUpdates } from "@/services/app-updates";
 
 export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, "mutedText");
   const tintColor = useThemeColor({}, "tint");
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -36,7 +35,6 @@ export default function SettingsScreen() {
       const auth = getFirebaseAuth();
       await signOut(auth);
       setIsProfileOpen(false);
-      router.replace("/auth");
     } catch (error: any) {
       Alert.alert("Logout failed", error?.message ?? "Please try again.");
     }
@@ -75,6 +73,15 @@ export default function SettingsScreen() {
       return;
     }
     Alert.alert("Sync failed", "Please try again.");
+  };
+
+  const handleCheckUpdates = async () => {
+    const result = await manualCheckForUpdates();
+    if (result.error) {
+      Alert.alert("Update check failed", result.error);
+    } else if (!result.updateAvailable) {
+      Alert.alert("No updates", "You have the latest version.");
+    }
   };
 
   const handleExport = async () => {
@@ -204,6 +211,7 @@ export default function SettingsScreen() {
         email={userEmail}
         onLogout={handleLogout}
         onSync={handleSync}
+        onCheckUpdates={handleCheckUpdates}
       />
     </>
   );

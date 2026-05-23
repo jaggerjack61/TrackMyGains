@@ -145,6 +145,10 @@ npm run download-apk -- -BuildId $buildId -OutputPath ".\TrackMyGains-preview.ap
 
 **Note:** Always use `--` before script arguments when running via `npm run` so npm forwards them correctly to the PowerShell scripts.
 
+### APK Naming Convention
+
+Release APKs follow the pattern `TrackMyGains-preview-YYYYMMDD.apk` (e.g., `TrackMyGains-preview-20260523.apk`). The app's built-in update checker looks for this pattern in the root of the `main` branch on GitHub. The default download script outputs this dated filename automatically.
+
 ## Requirements
 
 - Node.js and npm

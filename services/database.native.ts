@@ -8,6 +8,13 @@ import { Platform } from "react-native";
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<void> | null = null;
+let databaseOperationQueue: Promise<unknown> = Promise.resolve();
+
+const queueDatabaseOperation = async <T>(operation: () => Promise<T>) => {
+  const queuedOperation = databaseOperationQueue.then(operation, operation);
+  databaseOperationQueue = queuedOperation.catch(() => undefined);
+  return await queuedOperation;
+};
 
 export const initDatabase = async () => {
   if (db) return;
@@ -127,6 +134,13 @@ export const initDatabase = async () => {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           collection_name TEXT NOT NULL UNIQUE,
           last_sync_timestamp TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS apks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          version_date TEXT NOT NULL,
+          file_name TEXT,
+          downloaded_at TEXT,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
       `);
 
@@ -407,8 +421,10 @@ const queryAll = async <T>(
   ...params: any[]
 ): Promise<T[]> => {
   try {
-    const database = await requireDatabase();
-    return await database.getAllAsync<T>(sql, ...params);
+    return await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      return await database.getAllAsync<T>(sql, ...params);
+    });
   } catch (error) {
     console.error(errorMessage, error);
     return [];
@@ -421,8 +437,10 @@ const queryFirst = async <T>(
   ...params: any[]
 ): Promise<T | null> => {
   try {
-    const database = await requireDatabase();
-    return await database.getFirstAsync<T>(sql, ...params);
+    return await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      return await database.getFirstAsync<T>(sql, ...params);
+    });
   } catch (error) {
     console.error(errorMessage, error);
     return null;
@@ -431,8 +449,10 @@ const queryFirst = async <T>(
 
 const execute = async (errorMessage: string, sql: string, ...params: any[]) => {
   try {
-    const database = await requireDatabase();
-    await database.runAsync(sql, ...params);
+    await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      await database.runAsync(sql, ...params);
+    });
   } catch (error) {
     console.error(errorMessage, error);
     throw error;
@@ -445,9 +465,11 @@ const executeReturningId = async (
   ...params: any[]
 ): Promise<number> => {
   try {
-    const database = await requireDatabase();
-    const result = await database.runAsync(sql, ...params);
-    return result.lastInsertRowId;
+    return await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      const result = await database.runAsync(sql, ...params);
+      return result.lastInsertRowId;
+    });
   } catch (error) {
     console.error(errorMessage, error);
     throw error;
@@ -459,9 +481,11 @@ const executeTransaction = async (
   fn: (database: SQLite.SQLiteDatabase) => Promise<void>,
 ) => {
   try {
-    const database = await requireDatabase();
-    await database.withExclusiveTransactionAsync(async (transaction) => {
-      await fn(transaction);
+    await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        await fn(transaction);
+      });
     });
   } catch (error) {
     console.error(errorMessage, error);
@@ -1209,6 +1233,44 @@ export const setLastSyncTimestamp = async (
     timestamp,
     timestamp,
   );
+};
+
+// APK metadata (local-only, not synced to Firestore)
+export const getApkVersionDate = async (): Promise<string | null> => {
+  const result = await queryFirst<{ version_date: string }>(
+    "Error getting APK version date:",
+    "SELECT version_date FROM apks ORDER BY id DESC LIMIT 1",
+  );
+  return result?.version_date ?? null;
+};
+
+export const setApkVersionDate = async (
+  versionDate: string,
+  fileName?: string,
+) => {
+  const existing = await queryFirst<{ id: number }>(
+    "Error checking existing APK record:",
+    "SELECT id FROM apks ORDER BY id DESC LIMIT 1",
+  );
+
+  if (existing) {
+    await execute(
+      "Error updating APK version date:",
+      "UPDATE apks SET version_date = ?, file_name = ?, downloaded_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      versionDate,
+      fileName ?? null,
+      new Date().toISOString(),
+      existing.id,
+    );
+  } else {
+    await execute(
+      "Error inserting APK version date:",
+      "INSERT INTO apks (version_date, file_name, downloaded_at) VALUES (?, ?, ?)",
+      versionDate,
+      fileName ?? null,
+      new Date().toISOString(),
+    );
+  }
 };
 
 export const bulkInsertOrUpdate = async <T extends Record<string, any>>(

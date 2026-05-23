@@ -649,3 +649,26 @@ export const importDatabase = async () => {
   console.log('Import not supported on web');
   alert('Import not supported on web');
 };
+
+// APK metadata (local-only, not synced)
+const APK_STORAGE_KEY = 'trackmygains_apk';
+
+export const getApkVersionDate = async (): Promise<string | null> => {
+  try {
+    const data = localStorage.getItem(APK_STORAGE_KEY);
+    return data ? (JSON.parse(data) as { version_date: string }).version_date : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setApkVersionDate = async (versionDate: string, _fileName?: string) => {
+  try {
+    localStorage.setItem(
+      APK_STORAGE_KEY,
+      JSON.stringify({ version_date: versionDate, updated_at: new Date().toISOString() }),
+    );
+  } catch (e) {
+    console.error('Error saving APK metadata', e);
+  }
+};

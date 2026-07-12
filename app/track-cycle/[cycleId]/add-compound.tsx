@@ -51,16 +51,23 @@ export default function AddCompoundScreen() {
   }, [compounds]);
 
   const handleSave = async () => {
+    const parsedAmount = Number(amount);
+    const parsedDosingPeriod = Number(dosingPeriod);
+
     if (!selectedCompound) {
       alert('Please select a compound');
       return;
     }
-    if (!amount || isNaN(Number(amount))) {
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       alert('Please enter a valid amount');
       return;
     }
-    if (!dosingPeriod || isNaN(Number(dosingPeriod))) {
-      alert('Please enter a valid dosing period');
+    if (!Number.isInteger(parsedDosingPeriod) || parsedDosingPeriod < 1) {
+      alert('Dosing period must be a whole number of days');
+      return;
+    }
+    if (startDate > endDate) {
+      alert('End date must be on or after the start date');
       return;
     }
 
@@ -68,9 +75,9 @@ export default function AddCompoundScreen() {
       Number(cycleId),
       selectedCompound.id,
       selectedCompound.name,
-      Number(amount),
+      parsedAmount,
       amountUnit,
-      Number(dosingPeriod),
+      parsedDosingPeriod,
       startDate.toISOString(),
       endDate.toISOString()
     );

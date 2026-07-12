@@ -97,4 +97,29 @@ describe('calculateCycleLevels', () => {
     expect(result[0].name).toBe('Testosterone');
     expect(result[1].name).toBe('Anavar');
   });
+
+  it('accumulates and decays daily doses', () => {
+    const result = calculateCycleLevels(
+      [makeCompound({ amount: 100, dosing_period: 1, half_life_hours: 24, end_date: '2026-01-02' })],
+      new Date('2026-01-01'),
+      new Date('2026-01-02')
+    );
+
+    expect(result[0].data[0].value).toBeCloseTo(1000);
+    expect(result[0].data[1].value).toBeCloseTo(1500);
+    expect(result[0].data[2].value).toBeCloseTo(750);
+  });
+
+  it.each([0, -1, 0.5, 1.5, Number.POSITIVE_INFINITY])(
+    'returns zero levels for an invalid dosing period of %s',
+    dosingPeriod => {
+      const result = calculateCycleLevels(
+        [makeCompound({ dosing_period: dosingPeriod })],
+        new Date('2026-01-01'),
+        new Date('2026-01-02')
+      );
+
+      expect(result[0].data.every(point => point.value === 0)).toBe(true);
+    }
+  );
 });

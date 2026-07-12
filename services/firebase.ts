@@ -23,17 +23,7 @@ import { AppState, AppStateStatus, Platform } from "react-native";
 
 import {
     bulkInsertOrUpdate,
-    getCompounds,
-    getCycleCompounds,
-    getCycles,
-    getDailyLogs,
-    getDiets,
-    getExerciseLogs,
-    getExercises,
-    getMeals,
-    getRoutines,
-    getWeights,
-    getWorkouts,
+    getAllDataForSync,
     initDatabase,
 } from "@/services/database";
   import { sanitizeRecordForSync } from "@/services/sync-records";
@@ -140,44 +130,7 @@ const mapDocs = <T extends { id: number }>(
 
 const collectLocalData = async () => {
   await initDatabase();
-
-  const weights = await getWeights();
-  const routines = await getRoutines();
-  const workouts = (
-    await Promise.all(routines.map((routine) => getWorkouts(routine.id)))
-  ).flat();
-  const exercises = (
-    await Promise.all(workouts.map((workout) => getExercises(workout.id)))
-  ).flat();
-  const exerciseLogs = (
-    await Promise.all(exercises.map((exercise) => getExerciseLogs(exercise.id)))
-  ).flat();
-  const diets = await getDiets();
-  const dailyLogs = (
-    await Promise.all(diets.map((diet) => getDailyLogs(diet.id)))
-  ).flat();
-  const meals = (
-    await Promise.all(dailyLogs.map((log) => getMeals(log.id)))
-  ).flat();
-  const cycles = await getCycles();
-  const cycleCompounds = (
-    await Promise.all(cycles.map((cycle) => getCycleCompounds(cycle.id)))
-  ).flat();
-  const compounds = await getCompounds();
-
-  return {
-    weights,
-    routines,
-    workouts,
-    exercises,
-    exerciseLogs,
-    diets,
-    dailyLogs,
-    meals,
-    cycles,
-    cycleCompounds,
-    compounds,
-  };
+  return await getAllDataForSync();
 };
 
 const commitBatches = async (
@@ -309,7 +262,6 @@ export const syncLocalDataToFirestore = async (options?: {
       meals: localData.meals.length,
       cycles: localData.cycles.length,
       cycle_compounds: localData.cycleCompounds.length,
-      compounds: localData.compounds.length,
     };
 
     console.log("[Firestore Sync] Data collection summary:", counts);
@@ -325,7 +277,6 @@ export const syncLocalDataToFirestore = async (options?: {
       ...mapDocs("meals", localData.meals),
       ...mapDocs("cycles", localData.cycles),
       ...mapDocs("cycle_compounds", localData.cycleCompounds),
-      ...mapDocs("compounds", localData.compounds),
     ];
 
     await commitBatches(docs, firestore, userId);
@@ -391,13 +342,6 @@ export const syncLocalDataToFirestore = async (options?: {
       "cycle_compounds",
       new Set(localData.cycleCompounds.map((item) => String(item.id))),
     );
-    await pruneCollection(
-      firestore,
-      userId,
-      "compounds",
-      new Set(localData.compounds.map((item) => String(item.id))),
-    );
-
     permissionDeniedAt = 0;
     lastSyncAt = Date.now();
     console.log("[Firestore Sync] ✅ Sync completed successfully");
@@ -421,15 +365,29 @@ export const startFirestoreAutoSync = () => {
   const runSync = () => {
     void bidirectionalSync();
   };
+  const startInterval = () => {
+    if (!syncInterval) syncInterval = setInterval(runSync, SYNC_INTERVAL_MS);
+  };
+  const stopInterval = () => {
+    if (syncInterval) {
+      clearInterval(syncInterval);
+      syncInterval = null;
+    }
+  };
 
-  syncInterval = setInterval(runSync, SYNC_INTERVAL_MS);
-  runSync();
+  if (AppState.currentState === "active") {
+    startInterval();
+    runSync();
+  }
 
   appStateSubscription = AppState.addEventListener(
     "change",
     (state: AppStateStatus) => {
       if (state === "active") {
+        startInterval();
         runSync();
+      } else {
+        stopInterval();
       }
     },
   );
@@ -472,7 +430,7 @@ const fetchFirestoreCollection = async <T extends Record<string, any>>(
     });
   } catch (error) {
     console.error(`Error fetching ${collectionName} from Firestore:`, error);
-    return [];
+    throw error;
   }
 };
 
@@ -497,12 +455,10 @@ const compareAndSync = async <T extends { id: number; last_modified?: string }>(
 
   const normalizeTimestamp = (ts: string): number => {
     if (!ts) return 0;
-    // SQLite CURRENT_TIMESTAMP format: YYYY-MM-DD HH:MM:SS (UTC)
-    // We need to treat it as UTC
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)) {
-      return new Date(ts.replace(" ", "T") + "Z").getTime();
-    }
-    return new Date(ts).getTime();
+    const timestamp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)
+      ? new Date(ts.replace(" ", "T") + "Z").getTime()
+      : new Date(ts).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
   };
 
   // Check all local records
@@ -516,10 +472,9 @@ const compareAndSync = async <T extends { id: number; last_modified?: string }>(
         id: String(localRecord.id),
         data: sanitizeRecordForSync(tableName, localRecord),
       });
-    } else if (localRecord.last_modified && firestoreRecord.last_modified) {
-      // Both exist, compare timestamps
-      const localTime = normalizeTimestamp(localRecord.last_modified);
-      const firestoreTime = normalizeTimestamp(firestoreRecord.last_modified);
+    } else {
+      const localTime = normalizeTimestamp(localRecord.last_modified ?? "");
+      const firestoreTime = normalizeTimestamp(firestoreRecord.last_modified ?? "");
 
       if (localTime > firestoreTime) {
         // Local is newer, push it
@@ -617,30 +572,74 @@ export const bidirectionalSync = async (options?: {
 
     // Fetch all Firestore data
     console.log("[Bidirectional Sync] Fetching Firestore data...");
-    const firestoreData = {
-      weights: await fetchFirestoreCollection(firestore, userId, "weights"),
-      routines: await fetchFirestoreCollection(firestore, userId, "routines"),
-      workouts: await fetchFirestoreCollection(firestore, userId, "workouts"),
-      exercises: await fetchFirestoreCollection(firestore, userId, "exercises"),
-      exerciseLogs: await fetchFirestoreCollection(
+    const [
+      weights,
+      routines,
+      workouts,
+      exercises,
+      exerciseLogs,
+      diets,
+      dailyLogs,
+      meals,
+      cycles,
+      cycleCompounds,
+    ] = await Promise.all([
+      fetchFirestoreCollection(firestore, userId, "weights"),
+      fetchFirestoreCollection(firestore, userId, "routines"),
+      fetchFirestoreCollection(firestore, userId, "workouts"),
+      fetchFirestoreCollection(firestore, userId, "exercises"),
+      fetchFirestoreCollection(
         firestore,
         userId,
         "exercise_logs",
       ),
-      diets: await fetchFirestoreCollection(firestore, userId, "diets"),
-      dailyLogs: await fetchFirestoreCollection(
+      fetchFirestoreCollection(firestore, userId, "diets"),
+      fetchFirestoreCollection(
         firestore,
         userId,
         "daily_logs",
       ),
-      meals: await fetchFirestoreCollection(firestore, userId, "meals"),
-      cycles: await fetchFirestoreCollection(firestore, userId, "cycles"),
-      cycleCompounds: await fetchFirestoreCollection(
+      fetchFirestoreCollection(firestore, userId, "meals"),
+      fetchFirestoreCollection(firestore, userId, "cycles"),
+      fetchFirestoreCollection(
         firestore,
         userId,
         "cycle_compounds",
       ),
-      compounds: await fetchFirestoreCollection(firestore, userId, "compounds"),
+    ]);
+    let resolvedCycleCompounds = cycleCompounds;
+    if (cycleCompounds.some(record => !record.type || !record.half_life_hours)) {
+      const legacyCompounds = await fetchFirestoreCollection(
+        firestore,
+        userId,
+        "compounds",
+      );
+      const legacyCompoundsById = new Map(
+        legacyCompounds.map(record => [String(record.id), record]),
+      );
+      resolvedCycleCompounds = cycleCompounds.map(record => {
+        if (record.type && record.half_life_hours) return record;
+        const compound = legacyCompoundsById.get(String(record.compound_id));
+        return compound && compound.name === record.name
+          ? {
+              ...record,
+              type: compound.type,
+              half_life_hours: compound.half_life_hours,
+            }
+          : record;
+      });
+    }
+    const firestoreData = {
+      weights,
+      routines,
+      workouts,
+      exercises,
+      exerciseLogs,
+      diets,
+      dailyLogs,
+      meals,
+      cycles,
+      cycleCompounds: resolvedCycleCompounds,
     };
 
     // Sync each collection
@@ -686,11 +685,6 @@ export const bidirectionalSync = async (options?: {
         name: "cycle_compounds",
         local: localData.cycleCompounds,
         firestore: firestoreData.cycleCompounds,
-      },
-      {
-        name: "compounds",
-        local: localData.compounds,
-        firestore: firestoreData.compounds,
       },
     ];
 

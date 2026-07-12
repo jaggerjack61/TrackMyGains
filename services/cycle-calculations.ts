@@ -39,28 +39,45 @@ const toMgEquivalent = (compound: CycleCompound): number => {
   return compound.amount;
 };
 
-const calculateActiveAmountForCompoundAtDate = (compound: CycleCompound, date: Date): number => {
+const calculateActiveAmounts = (compound: CycleCompound, dates: Date[]): number[] => {
   const dosingPeriodDays = compound.dosing_period;
-  if (dosingPeriodDays <= 0) return 0;
-
-  const halfLifeHours = compound.half_life_hours > 0 ? compound.half_life_hours : 24;
-  const compoundStart = new Date(compound.start_date);
-  const compoundEnd = new Date(compound.end_date);
-
-  let totalActiveAmount = 0;
-  const doseDate = new Date(compoundStart);
-  const doseAmount = toMgEquivalent(compound);
-
-  while (doseDate <= compoundEnd && doseDate <= date) {
-    const hoursSinceDose = (date.getTime() - doseDate.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceDose >= 0) {
-      totalActiveAmount += calculateRemainingAmount(doseAmount, halfLifeHours, hoursSinceDose);
-    }
-
-    doseDate.setDate(doseDate.getDate() + dosingPeriodDays);
+  if (!Number.isInteger(dosingPeriodDays) || dosingPeriodDays <= 0) {
+    return dates.map(() => 0);
   }
 
-  return totalActiveAmount;
+  const halfLifeHours = Number.isFinite(compound.half_life_hours) && compound.half_life_hours > 0
+    ? compound.half_life_hours
+    : 24;
+  const compoundStart = new Date(compound.start_date);
+  const compoundEnd = new Date(compound.end_date);
+  if (Number.isNaN(compoundStart.getTime()) || Number.isNaN(compoundEnd.getTime())) {
+    return dates.map(() => 0);
+  }
+
+  const doseAmount = toMgEquivalent(compound);
+  if (!Number.isFinite(doseAmount) || doseAmount <= 0) {
+    return dates.map(() => 0);
+  }
+
+  let activeAmount = 0;
+  let previousDate: Date | null = null;
+  const nextDoseDate = new Date(compoundStart);
+
+  return dates.map((date) => {
+    if (previousDate) {
+      const elapsedHours = (date.getTime() - previousDate.getTime()) / (1000 * 60 * 60);
+      activeAmount = calculateRemainingAmount(activeAmount, halfLifeHours, elapsedHours);
+    }
+
+    while (nextDoseDate <= compoundEnd && nextDoseDate <= date) {
+      const hoursSinceDose = (date.getTime() - nextDoseDate.getTime()) / (1000 * 60 * 60);
+      activeAmount += calculateRemainingAmount(doseAmount, halfLifeHours, hoursSinceDose);
+      nextDoseDate.setDate(nextDoseDate.getDate() + dosingPeriodDays);
+    }
+
+    previousDate = date;
+    return activeAmount;
+  });
 };
 
 const defaultSeriesColors = [
@@ -80,9 +97,10 @@ export const calculateCycleLevels = (
   const dates = buildPlotDates(startDate, endDate, 28);
 
   return compounds.map((compound, index) => {
-    const data: DataPoint[] = dates.map(date => ({
+    const activeAmounts = calculateActiveAmounts(compound, dates);
+    const data: DataPoint[] = dates.map((date, dateIndex) => ({
       date: date.toISOString(),
-      value: calculateActiveAmountForCompoundAtDate(compound, date) * MG_EQUIVALENT_TO_NGDL,
+      value: activeAmounts[dateIndex] * MG_EQUIVALENT_TO_NGDL,
     }));
 
     return {

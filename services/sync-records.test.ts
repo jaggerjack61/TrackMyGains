@@ -3,7 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import { sanitizeRecordForSync } from './sync-records';
 
 describe('sanitizeRecordForSync', () => {
-  it('removes derived cycle compound fields before syncing', () => {
+  it('keeps compound metadata needed to resolve cross-platform references', () => {
     const result = sanitizeRecordForSync('cycle_compounds', {
       id: 1,
       cycle_id: 2,
@@ -32,6 +32,8 @@ describe('sanitizeRecordForSync', () => {
       end_date: '2026-03-30',
       created_at: '2026-03-01T00:00:00.000Z',
       last_modified: '2026-03-01T00:00:00.000Z',
+      type: 'injectable',
+      half_life_hours: 108,
     });
   });
 

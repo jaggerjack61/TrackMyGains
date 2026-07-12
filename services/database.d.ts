@@ -95,6 +95,18 @@ export interface CycleCompound {
 }
 
 export declare const initDatabase: () => Promise<void>;
+export declare const getAllDataForSync: () => Promise<{
+  weights: (Record<string, any> & { id: number })[];
+  routines: (Record<string, any> & { id: number })[];
+  workouts: (Record<string, any> & { id: number })[];
+  exercises: (Record<string, any> & { id: number })[];
+  exerciseLogs: (Record<string, any> & { id: number })[];
+  diets: (Record<string, any> & { id: number })[];
+  dailyLogs: (Record<string, any> & { id: number })[];
+  meals: (Record<string, any> & { id: number })[];
+  cycles: (Record<string, any> & { id: number })[];
+  cycleCompounds: (Record<string, any> & { id: number })[];
+}>;
 export declare const addWeight: (weight: number, date: string) => Promise<void>;
 export declare const getWeights: () => Promise<WeightRecord[]>;
 export declare const deleteWeight: (id: number) => Promise<void>;

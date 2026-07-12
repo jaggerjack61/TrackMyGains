@@ -37,7 +37,7 @@ $ErrorActionPreference = "Stop"
 Write-Host "Starting EAS build (profile: $Profile, platform: $Platform)..." -ForegroundColor Cyan
 
 # Run the build command and capture all output (stdout + stderr)
-$output = & npx eas-cli build --platform $Platform --profile $Profile --non-interactive 2>&1
+$output = & npx eas-cli build --platform $Platform --profile $Profile --non-interactive --no-wait 2>&1
 $outputString = $output -join "`n"
 
 # Regex for a standard UUID v4

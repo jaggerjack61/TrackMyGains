@@ -37,4 +37,54 @@ describe('database.native source', () => {
 
     expect(source).not.toContain('apks.last_modified');
   });
+
+  it('test_initDatabase_concurrentCall_waitsForInitialization', () => {
+    const source = readNativeDatabaseSource();
+    const initStart = source.indexOf('export const initDatabase');
+    const promiseCheck = source.indexOf('if (initPromise)', initStart);
+    const databaseCheck = source.indexOf('if (db) return', initStart);
+
+    expect(promiseCheck).toBeGreaterThan(initStart);
+    expect(promiseCheck).toBeLessThan(databaseCheck);
+  });
+
+  it('test_initDatabase_hotQueries_haveSupportingIndexes', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('idx_workouts_routine_order');
+    expect(source).toContain('idx_exercise_logs_exercise_date');
+    expect(source).toContain('idx_daily_logs_diet_date');
+    expect(source).toContain('idx_cycle_compounds_cycle_start');
+  });
+
+  it('test_bulkInsertOrUpdate_usesSingleStatementUpsert', () => {
+    const source = readNativeDatabaseSource();
+    const bulkInsertSource = source.slice(source.indexOf('export const bulkInsertOrUpdate'));
+
+    expect(bulkInsertSource).toContain('ON CONFLICT(id)');
+    expect(bulkInsertSource).not.toContain('SELECT id FROM ${tableName}');
+  });
+
+  it('test_reordering_updatesSyncTimestamp', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('UPDATE routines SET sort_order = ?, last_modified = CURRENT_TIMESTAMP');
+    expect(source).toContain('UPDATE workouts SET sort_order = ?, last_modified = CURRENT_TIMESTAMP');
+    expect(source).toContain('UPDATE diets SET sort_order = ?, last_modified = CURRENT_TIMESTAMP');
+  });
+
+  it('test_legacyTimestampMigration_doesNotLookNewerThanRemoteData', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain("SET last_modified = '1970-01-01 00:00:00'");
+  });
+
+  it('test_cycleCompoundPull_resolvesPlatformSpecificIdByName', () => {
+    const source = readNativeDatabaseSource();
+    const bulkInsertSource = source.slice(source.indexOf('export const bulkInsertOrUpdate'));
+
+    expect(bulkInsertSource).toContain('FROM compounds WHERE name = ?');
+    expect(bulkInsertSource).toContain('INSERT INTO compounds (name, type, half_life_hours)');
+    expect(bulkInsertSource).toContain('delete normalizedRecord.half_life_hours');
+  });
 });

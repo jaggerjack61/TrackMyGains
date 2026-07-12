@@ -1,8 +1,8 @@
 # Project State
 
-- Date: 2026-05-23
+- Date: 2026-07-10
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
-- Current focus: Auth routing fix, Android APK self-update support
+- Current focus: Sync correctness/performance and cycle calculation robustness
 
 ## Stack + Architecture Snapshot
 - UI: React Native + Expo Router, TypeScript, StyleSheet (no Tailwind)
@@ -30,3 +30,12 @@
 - APK naming convention: `TrackMyGains-preview-YYYYMMDD.apk` in repo root.
 - The update source is the repo root on `main`, not GitHub Releases.
 - Requires a rebuilt APK to validate DownloadManager/install intents (cannot test in Expo Go).
+
+## 2026-07-10 Reliability Pass
+- Cycle level calculation now uses a linear recurrence and rejects non-integer dosing periods, preventing fractional-period render freezes.
+- Sync snapshots use fixed-count all-table reads instead of hierarchical N+1 database traversal.
+- Firestore collections are fetched concurrently; any failed read aborts reconciliation instead of being treated as an empty collection.
+- Auto-sync polling pauses while the app is inactive.
+- Native initialization waits for in-flight schema setup, uses schema-aware migrations, adds hot-query indexes, and uses one-statement SQLite upserts.
+- Web records now receive sync timestamps, support bulk pull upserts, and cascade routine/workout deletion through exercise logs.
+- Platform-specific compound reference IDs are not synced; pulled cycle compounds resolve references by compound name.

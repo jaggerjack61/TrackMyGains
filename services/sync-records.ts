@@ -47,6 +47,8 @@ const persistedColumnsByCollection: Record<string, readonly string[]> = {
     'dosing_period',
     'start_date',
     'end_date',
+    'type',
+    'half_life_hours',
   ),
 };
 

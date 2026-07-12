@@ -17,11 +17,11 @@ const queueDatabaseOperation = async <T>(operation: () => Promise<T>) => {
 };
 
 export const initDatabase = async () => {
-  if (db) return;
   if (initPromise) {
     await initPromise;
     return;
   }
+  if (db) return;
 
   initPromise = (async () => {
     try {
@@ -343,30 +343,6 @@ export const initDatabase = async () => {
         }
       }
 
-      // Migration to add sort_order if it doesn't exist (simplified check)
-      try {
-        await db.execAsync(
-          "ALTER TABLE routines ADD COLUMN sort_order INTEGER DEFAULT 0;",
-        );
-      } catch {
-        // Ignore error if column already exists
-      }
-      try {
-        await db.execAsync(
-          "ALTER TABLE workouts ADD COLUMN sort_order INTEGER DEFAULT 0;",
-        );
-      } catch {
-        // Ignore error if column already exists
-      }
-      try {
-        await db.execAsync(
-          "ALTER TABLE diets ADD COLUMN sort_order INTEGER DEFAULT 0;",
-        );
-      } catch {
-        // Ignore error if column already exists
-      }
-
-      // Migration to add last_modified columns
       const tables = [
         "weights",
         "routines",
@@ -380,21 +356,56 @@ export const initDatabase = async () => {
         "compounds",
         "cycle_compounds",
       ];
+      const columnsByTable = new Map<string, Set<string>>();
 
       for (const table of tables) {
-        try {
+        const columns = await db.getAllAsync<{ name: string }>(
+          `PRAGMA table_info(${table})`,
+        );
+        columnsByTable.set(table, new Set(columns.map((column) => column.name)));
+      }
+
+      for (const table of ["routines", "workouts", "diets"]) {
+        if (!columnsByTable.get(table)?.has("sort_order")) {
           await db.execAsync(
-            `ALTER TABLE ${table} ADD COLUMN last_modified TEXT DEFAULT CURRENT_TIMESTAMP;`,
+            `ALTER TABLE ${table} ADD COLUMN sort_order INTEGER DEFAULT 0;`,
           );
-          // Set last_modified for existing records to current timestamp
-          await db.execAsync(
-            `UPDATE ${table} SET last_modified = CURRENT_TIMESTAMP WHERE last_modified IS NULL;`,
-          );
-          console.log(`Added last_modified column to ${table}`);
-        } catch {
-          // Ignore error if column already exists
         }
       }
+
+      for (const table of tables) {
+        if (!columnsByTable.get(table)?.has("last_modified")) {
+          await db.execAsync(
+            `ALTER TABLE ${table} ADD COLUMN last_modified TEXT;`,
+          );
+          await db.execAsync(
+            `UPDATE ${table} SET last_modified = '1970-01-01 00:00:00' WHERE last_modified IS NULL;`,
+          );
+        }
+
+        await db.execAsync(`
+          CREATE TRIGGER IF NOT EXISTS set_${table}_last_modified_after_insert
+          AFTER INSERT ON ${table}
+          WHEN NEW.last_modified IS NULL
+          BEGIN
+            UPDATE ${table} SET last_modified = CURRENT_TIMESTAMP WHERE id = NEW.id;
+          END;
+        `);
+      }
+
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_weights_date ON weights(date DESC);
+        CREATE INDEX IF NOT EXISTS idx_routines_order ON routines(sort_order, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_workouts_routine_order ON workouts(routine_id, sort_order, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_exercises_workout_created ON exercises(workout_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_exercise_logs_exercise_date ON exercise_logs(exercise_id, date DESC, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_diets_order ON diets(sort_order, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_daily_logs_diet_date ON daily_logs(diet_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_meals_daily_log_created ON meals(daily_log_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_cycles_start_date ON cycles(start_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_cycle_compounds_cycle_start ON cycle_compounds(cycle_id, start_date);
+        CREATE INDEX IF NOT EXISTS idx_compounds_name ON compounds(name);
+      `);
 
       console.log("Database initialized");
     } catch (error) {
@@ -410,7 +421,8 @@ export const initDatabase = async () => {
 };
 
 const requireDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
-  if (!db) await initDatabase();
+  if (initPromise) await initPromise;
+  else if (!db) await initDatabase();
   if (!db) throw new Error("Database not initialized");
   return db;
 };
@@ -564,7 +576,7 @@ export const updateRoutineOrder = async (
       for (let i = 0; i < routines.length; i++) {
         const routine = routines[i];
         await database.runAsync(
-          "UPDATE routines SET sort_order = ? WHERE id = ?",
+          "UPDATE routines SET sort_order = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?",
           i,
           routine.id,
         );
@@ -636,7 +648,7 @@ export const updateWorkoutOrder = async (
       for (let i = 0; i < workouts.length; i++) {
         const workout = workouts[i];
         await database.runAsync(
-          "UPDATE workouts SET sort_order = ? WHERE id = ?",
+          "UPDATE workouts SET sort_order = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?",
           i,
           workout.id,
         );
@@ -907,7 +919,7 @@ export const updateDietOrder = async (
     for (let i = 0; i < diets.length; i++) {
       const diet = diets[i];
       await database.runAsync(
-        "UPDATE diets SET sort_order = ? WHERE id = ?",
+        "UPDATE diets SET sort_order = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?",
         i,
         diet.id,
       );
@@ -1209,6 +1221,39 @@ export const updateCycleCompound = async (
   );
 };
 
+export const getAllDataForSync = async () => {
+  return await queueDatabaseOperation(async () => {
+    const database = await requireDatabase();
+    const weights = await database.getAllAsync<any>("SELECT * FROM weights");
+    const routines = await database.getAllAsync<any>("SELECT * FROM routines");
+    const workouts = await database.getAllAsync<any>("SELECT * FROM workouts");
+    const exercises = await database.getAllAsync<any>("SELECT * FROM exercises");
+    const exerciseLogs = await database.getAllAsync<any>("SELECT * FROM exercise_logs");
+    const diets = await database.getAllAsync<any>("SELECT * FROM diets");
+    const dailyLogs = await database.getAllAsync<any>("SELECT * FROM daily_logs");
+    const meals = await database.getAllAsync<any>("SELECT * FROM meals");
+    const cycles = await database.getAllAsync<any>("SELECT * FROM cycles");
+    const cycleCompounds = await database.getAllAsync<any>(`
+      SELECT cc.*, c.type, c.half_life_hours
+      FROM cycle_compounds cc
+      JOIN compounds c ON c.id = cc.compound_id
+    `);
+
+    return {
+      weights,
+      routines,
+      workouts,
+      exercises,
+      exerciseLogs,
+      diets,
+      dailyLogs,
+      meals,
+      cycles,
+      cycleCompounds,
+    };
+  });
+};
+
 // Sync metadata functions
 export const getLastSyncTimestamp = async (
   collectionName: string,
@@ -1283,33 +1328,61 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
     `Error bulk inserting/updating ${tableName}:`,
     async (database) => {
       for (const record of records) {
-        const columns = Object.keys(record).filter((key) => key !== "id");
-        const values = columns.map((col) => record[col]);
-
-        // Check if record exists
-        const existing = await database.getFirstAsync<{ id: number }>(
-          `SELECT id FROM ${tableName} WHERE id = ?`,
-          record.id,
-        );
-
-        if (existing) {
-          // Update existing record
-          const setClause = columns.map((col) => `${col} = ?`).join(", ");
-          await database.runAsync(
-            `UPDATE ${tableName} SET ${setClause} WHERE id = ?`,
-            ...values,
-            record.id,
+        const normalizedRecord: Record<string, any> = { ...record };
+        if (tableName === "cycle_compounds" && typeof record.name === "string") {
+          const matchingCompounds = await database.getAllAsync<{
+            id: number;
+            type: string;
+            half_life_hours: number;
+          }>(
+            "SELECT id, type, half_life_hours FROM compounds WHERE name = ?",
+            record.name,
           );
-        } else {
-          // Insert new record
-          const allColumns = ["id", ...columns];
-          const allPlaceholders = allColumns.map(() => "?").join(", ");
-          const allValues = [record.id, ...values];
-          await database.runAsync(
-            `INSERT INTO ${tableName} (${allColumns.join(", ")}) VALUES (${allPlaceholders})`,
-            ...allValues,
-          );
+          const isValidType = ["injectable", "oral", "peptide"].includes(record.type);
+          const halfLifeHours = Number(record.half_life_hours);
+          const hasValidMetadata = isValidType
+            && Number.isFinite(halfLifeHours)
+            && halfLifeHours > 0;
+          let compound: { id: number } | undefined = hasValidMetadata
+            ? matchingCompounds.find((candidate) => (
+                candidate.type === record.type
+                && Math.abs(candidate.half_life_hours - halfLifeHours) < 1e-9
+              ))
+            : matchingCompounds.length === 1
+              ? matchingCompounds[0]
+              : undefined;
+
+          if (!compound) {
+            if (!hasValidMetadata) {
+              throw new Error(`Unknown compound without valid metadata: ${record.name}`);
+            }
+
+            const result = await database.runAsync(
+              "INSERT INTO compounds (name, type, half_life_hours) VALUES (?, ?, ?)",
+              record.name,
+              record.type,
+              halfLifeHours,
+            );
+            compound = { id: Number(result.lastInsertRowId) };
+          }
+
+          normalizedRecord.compound_id = compound.id;
+          delete normalizedRecord.type;
+          delete normalizedRecord.half_life_hours;
         }
+
+        const columns = Object.keys(normalizedRecord);
+        const values = columns.map((column) => normalizedRecord[column]);
+        const placeholders = columns.map(() => "?").join(", ");
+        const updateColumns = columns.filter((column) => column !== "id");
+        const conflictClause = updateColumns.length > 0
+          ? `DO UPDATE SET ${updateColumns.map((column) => `${column} = excluded.${column}`).join(", ")}`
+          : "DO NOTHING";
+
+        await database.runAsync(
+          `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT(id) ${conflictClause}`,
+          ...values,
+        );
       }
     },
   );

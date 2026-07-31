@@ -8,13 +8,12 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addExerciseLog, deleteExerciseLog, ExerciseLog, getExerciseLogs, updateExerciseLog } from '@/services/database';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
-    Dimensions,
     FlatList,
     Modal,
     Platform,
@@ -22,16 +21,16 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-
-const screenWidth = Dimensions.get('window').width;
-const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
-const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 type GraphMetric = 'weight' | 'sets' | 'volume';
 
 export default function ExerciseDetailScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+  const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
   const { exerciseId, exerciseName } = useLocalSearchParams<{ exerciseId: string; exerciseName: string }>();
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -178,7 +177,7 @@ export default function ExerciseDetailScreen() {
       labels,
       datasets: [{ data }, buildYAxisBoundsDataset(axis, labels.length)],
     };
-  }, [logs, graphMetric]);
+  }, [chartViewportWidth, graphMetric, logs]);
 
   return (
     <ThemedView style={styles.container}>

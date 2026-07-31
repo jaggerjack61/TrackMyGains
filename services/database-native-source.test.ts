@@ -61,7 +61,7 @@ describe('database.native source', () => {
     const source = readNativeDatabaseSource();
     const bulkInsertSource = source.slice(source.indexOf('export const bulkInsertOrUpdate'));
 
-    expect(bulkInsertSource).toContain('ON CONFLICT(id)');
+    expect(bulkInsertSource).toContain('ON CONFLICT(sync_id)');
     expect(bulkInsertSource).not.toContain('SELECT id FROM ${tableName}');
   });
 
@@ -83,8 +83,25 @@ describe('database.native source', () => {
     const source = readNativeDatabaseSource();
     const bulkInsertSource = source.slice(source.indexOf('export const bulkInsertOrUpdate'));
 
-    expect(bulkInsertSource).toContain('FROM compounds WHERE name = ?');
+    expect(bulkInsertSource).toContain('SELECT id, name, type, half_life_hours FROM compounds');
     expect(bulkInsertSource).toContain('INSERT INTO compounds (name, type, half_life_hours)');
     expect(bulkInsertSource).toContain('delete normalizedRecord.half_life_hours');
+  });
+
+  it('test_syncSchema_usesStableIdsOutboxAndTombstones', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('sync_id TEXT UNIQUE');
+    expect(source).toContain('CREATE TABLE IF NOT EXISTS sync_outbox');
+    expect(source).toContain('CREATE TABLE IF NOT EXISTS sync_tombstones');
+    expect(source).toContain('ON CONFLICT(sync_id)');
+  });
+
+  it('test_dailyLogs_enforcesOneCalendarDayPerDiet', () => {
+    const source = readNativeDatabaseSource();
+
+    expect(source).toContain('idx_daily_logs_unique_date');
+    expect(source).toContain('ON CONFLICT(diet_id, date) DO NOTHING');
+    expect(source).toContain('getDailyLogSyncId');
   });
 });

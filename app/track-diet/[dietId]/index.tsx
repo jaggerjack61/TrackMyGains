@@ -7,33 +7,35 @@ import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
-import { addDailyLog, DailyLog, deleteDailyLog, getDailyLogs, getMeals } from '@/services/database';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { addDailyLog, DailyLogWithStats, deleteDailyLog, getDailyLogsWithStats } from '@/services/database';
+import { formatLocalDateKey, parseLocalDateKey } from '@/services/date-utils';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
-    Dimensions,
     FlatList,
     Platform,
     StyleSheet,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-
-const screenWidth = Dimensions.get('window').width;
-const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
-const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 type GraphMetric = 'calories' | 'protein' | 'carbs' | 'fats';
 
 export default function DietDetailScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+  const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
   const { dietId } = useLocalSearchParams<{ dietId: string }>();
-  const [dailyLogs, setDailyLogs] = useState<(DailyLog & { totalStats: { calories: number; protein: number; carbs: number; fats: number } })[]>([]);
+  const [dailyLogs, setDailyLogs] = useState<(DailyLogWithStats & { totalStats: { calories: number; protein: number; carbs: number; fats: number } })[]>([]);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isAddingDay, setIsAddingDay] = useState(false);
   const [graphMetric, setGraphMetric] = useState<GraphMetric>('calories');
   const router = useRouter();
 
@@ -44,56 +46,63 @@ export default function DietDetailScreen() {
 
   const loadData = useCallback(async () => {
     if (!dietId) return;
-    const logs = await getDailyLogs(Number(dietId));
-    
-    // Calculate totals for each day
-    const logsWithStats = await Promise.all(logs.map(async (log) => {
-      const meals = await getMeals(log.id);
-      const totalStats = meals.reduce((acc, meal) => ({
-        calories: acc.calories + meal.calories,
-        protein: acc.protein + meal.protein,
-        carbs: acc.carbs + meal.carbs,
-        fats: acc.fats + meal.fats,
-      }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
-      return { ...log, totalStats };
+    const logs = await getDailyLogsWithStats(Number(dietId));
+    const logsWithStats = logs.map(log => ({
+      ...log,
+      totalStats: {
+        calories: log.total_calories,
+        protein: log.total_protein,
+        carbs: log.total_carbs,
+        fats: log.total_fats,
+      },
     }));
 
     setDailyLogs(logsWithStats);
   }, [dietId]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadData();
+    }, [loadData]),
+  );
 
-  const handleAddDay = async () => {
+  const handleAddDay = () => {
     setShowDatePicker(true);
   };
 
-  const onDateChange = async (event: any, selectedDate?: Date) => {
+  const saveSelectedDay = async (selectedDate: Date) => {
+    if (isAddingDay) return;
+    const dateKey = formatLocalDateKey(selectedDate);
+    const existing = dailyLogs.find(log => log.date === dateKey);
+    if (existing) {
+      Alert.alert('Info', 'A log for this date already exists', [
+        { text: 'Go to Log', onPress: () => router.push(`/track-diet/${dietId}/${existing.date}`) },
+      ]);
+      return;
+    }
+
+    setIsAddingDay(true);
+    try {
+      await addDailyLog(Number(dietId), dateKey);
+      await loadData();
+      router.push(`/track-diet/${dietId}/${dateKey}`);
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to add day: ' + (error.message || error));
+    } finally {
+      setIsAddingDay(false);
+    }
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (event?.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
     const currentDate = selectedDate || date;
     setDate(currentDate);
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
-    }
-    
-    if (selectedDate) {
-      // Check if log already exists
-      const existing = dailyLogs.find(l => l.date === currentDate.toISOString().split('T')[0]);
-      if (existing) {
-        Alert.alert('Info', 'A log for this date already exists', [
-            { text: 'Go to Log', onPress: () => router.push(`/track-diet/${dietId}/${existing.date}`) }
-        ]);
-        return;
-      }
-
-      try {
-        await addDailyLog(Number(dietId), currentDate.toISOString().split('T')[0]);
-        loadData();
-        // Navigate to the new log
-        router.push(`/track-diet/${dietId}/${currentDate.toISOString().split('T')[0]}`);
-      } catch (e: any) {
-        Alert.alert('Error', 'Failed to add day: ' + (e.message || e));
-      }
+      if (selectedDate) void saveSelectedDay(selectedDate);
     }
   };
 
@@ -133,7 +142,7 @@ export default function DietDetailScreen() {
       labels,
       datasets: [{ data }, buildYAxisBoundsDataset(axis, labels.length)],
     };
-  }, [dailyLogs, graphMetric]);
+  }, [chartViewportWidth, dailyLogs, graphMetric]);
 
   return (
     <ThemedView style={styles.container}>
@@ -218,7 +227,7 @@ export default function DietDetailScreen() {
                 <View style={styles.dateContainer}>
                     <MaterialCommunityIcons name="calendar" size={20} color={tintColor} />
                     <ThemedText type="defaultSemiBold" style={styles.dateText}>
-                        {new Date(item.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {parseLocalDateKey(item.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                     </ThemedText>
                 </View>
                 <TouchableOpacity onPress={() => handleDelete(item.id)}>
@@ -269,7 +278,13 @@ export default function DietDetailScreen() {
             onChange={onDateChange}
             />
             {Platform.OS === 'ios' && (
-                <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.iosDatePickerDone}>
+                <TouchableOpacity
+                  disabled={isAddingDay}
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    void saveSelectedDay(date);
+                  }}
+                  style={styles.iosDatePickerDone}>
                     <ThemedText style={{color: tintColor}}>Done</ThemedText>
                 </TouchableOpacity>
             )}

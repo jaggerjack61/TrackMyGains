@@ -8,26 +8,22 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Dimensions,
   FlatList,
   Modal,
   Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-
-const screenWidth = Dimensions.get('window').width;
-const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
-const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
 
 interface WeightRecord {
   id: number;
@@ -36,6 +32,9 @@ interface WeightRecord {
 }
 
 export default function TrackWeightScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+  const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
   const [weights, setWeights] = useState<WeightRecord[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newWeight, setNewWeight] = useState('');
@@ -130,7 +129,7 @@ export default function TrackWeightScreen() {
       datasets: [...visibleDatasets, buildYAxisBoundsDataset(axis, labels.length)],
       legend: ['Weight']
     };
-  }, [chronologicalWeights, tintColor]);
+  }, [chartViewportWidth, chronologicalWeights, tintColor]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || newDate;

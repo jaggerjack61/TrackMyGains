@@ -1,10 +1,9 @@
 import { Header } from '@/components/Header';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Dimensions,
   Pressable,
   ScrollView,
   SectionList,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
   type GestureResponderEvent,
+  useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
@@ -31,16 +31,15 @@ import {
 import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
 
-const screenWidth = Dimensions.get('window').width;
-const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
-const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
-
 type PinchState = {
   startDistance: number;
   startZoom: number;
 };
 
 export default function CycleDetailScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
+  const chartViewportWidth = chartFrameWidth - DEFAULT_CHART_Y_AXIS_WIDTH;
   const { cycleId } = useLocalSearchParams();
   const [cycle, setCycle] = useState<Cycle | null>(null);
   const [compounds, setCompounds] = useState<CycleCompound[]>([]);
@@ -119,7 +118,7 @@ export default function CycleDetailScreen() {
       chartViewportWidth,
       xZoom,
     );
-  }, [chartDates, xZoom]);
+  }, [chartDates, chartViewportWidth, xZoom]);
 
   const compoundSections = useMemo(() => {
     const groupOrder: { type: CycleCompound['type']; title: string }[] = [

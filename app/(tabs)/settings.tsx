@@ -1,6 +1,5 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import React, { useEffect, useState } from "react";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import React from "react";
 import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,78 +10,22 @@ import { ThemedView } from "@/components/themed-view";
 import { SoftButton } from "@/components/ui/soft-ui";
 import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { useProfileMenuActions } from "@/hooks/use-profile-menu-actions";
 import { exportDatabase, importDatabase } from "@/services/database";
-import { bidirectionalSync, getFirebaseAuth } from "@/services/firebase";
-import { manualCheckForUpdates } from "@/services/app-updates";
 
 export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, "mutedText");
   const tintColor = useThemeColor({}, "tint");
   const insets = useSafeAreaInsets();
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    const auth = getFirebaseAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUserEmail(user?.email ?? null);
-    });
-    return unsubscribe;
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      const auth = getFirebaseAuth();
-      await signOut(auth);
-      setIsProfileOpen(false);
-    } catch (error: any) {
-      Alert.alert("Logout failed", error?.message ?? "Please try again.");
-    }
-  };
-
-  const handleSync = async () => {
-    const { status, stats } = await bidirectionalSync({ force: true });
-    if (status === "success") {
-      const pushed = stats
-        ? Object.values(stats.pushed).reduce((a, b) => a + b, 0)
-        : 0;
-      const pulled = stats
-        ? Object.values(stats.pulled).reduce((a, b) => a + b, 0)
-        : 0;
-      Alert.alert("Sync complete", `Pushed: ${pushed}\nPulled: ${pulled}`);
-      return;
-    }
-    if (status === "offline") {
-      Alert.alert("Offline", "Connect to the internet to sync your data.");
-      return;
-    }
-    if (status === "unauthenticated") {
-      Alert.alert("Not signed in", "Sign in to sync your data.");
-      return;
-    }
-    if (status === "permission-denied") {
-      Alert.alert("Sync blocked", "Firestore rules are blocking access.");
-      return;
-    }
-    if (status === "busy") {
-      Alert.alert("Sync in progress", "A sync is already running.");
-      return;
-    }
-    if (status === "skipped") {
-      Alert.alert("Already synced", "Your data was synced recently.");
-      return;
-    }
-    Alert.alert("Sync failed", "Please try again.");
-  };
-
-  const handleCheckUpdates = async () => {
-    const result = await manualCheckForUpdates();
-    if (result.error) {
-      Alert.alert("Update check failed", result.error);
-    } else if (!result.updateAvailable) {
-      Alert.alert("No updates", "You have the latest version.");
-    }
-  };
+  const {
+    closeProfile,
+    handleCheckUpdates,
+    handleLogout,
+    handleSync,
+    isProfileOpen,
+    openProfile,
+    userEmail,
+  } = useProfileMenuActions();
 
   const handleExport = async () => {
     try {
@@ -131,7 +74,7 @@ export default function SettingsScreen() {
         headerImage={
           <View style={styles.header}>
             <SoftButton
-              onPress={() => setIsProfileOpen(true)}
+              onPress={openProfile}
               style={[
                 styles.menuButton,
                 {
@@ -207,7 +150,7 @@ export default function SettingsScreen() {
       </ParallaxScrollView>
       <ProfileMenu
         isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+        onClose={closeProfile}
         email={userEmail}
         onLogout={handleLogout}
         onSync={handleSync}

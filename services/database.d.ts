@@ -1,17 +1,27 @@
-export interface WeightRecord {
+import type {
+  SyncOutboxEntry,
+  SyncTombstone,
+} from './sync-records';
+
+interface SyncIdentity {
+  sync_id: string;
+  last_modified?: string;
+}
+
+export interface WeightRecord extends SyncIdentity {
   id: number;
   weight: number;
   date: string;
 }
 
-export interface Routine {
+export interface Routine extends SyncIdentity {
   id: number;
   name: string;
   created_at: string;
   sort_order: number;
 }
 
-export interface Workout {
+export interface Workout extends SyncIdentity {
   id: number;
   routine_id: number;
   name: string;
@@ -20,14 +30,14 @@ export interface Workout {
   sort_order: number;
 }
 
-export interface Exercise {
+export interface Exercise extends SyncIdentity {
   id: number;
   workout_id: number;
   name: string;
   created_at: string;
 }
 
-export interface ExerciseLog {
+export interface ExerciseLog extends SyncIdentity {
   id: number;
   exercise_id: number;
   date: string;
@@ -38,21 +48,21 @@ export interface ExerciseLog {
   created_at: string;
 }
 
-export interface Diet {
+export interface Diet extends SyncIdentity {
   id: number;
   name: string;
   created_at: string;
   sort_order: number;
 }
 
-export interface DailyLog {
+export interface DailyLog extends SyncIdentity {
   id: number;
   diet_id: number;
   date: string;
   created_at: string;
 }
 
-export interface Meal {
+export interface Meal extends SyncIdentity {
   id: number;
   daily_log_id: number;
   name: string;
@@ -63,7 +73,7 @@ export interface Meal {
   created_at: string;
 }
 
-export interface Cycle {
+export interface Cycle extends SyncIdentity {
   id: number;
   name: string;
   start_date: string;
@@ -79,7 +89,7 @@ export interface Compound {
   created_at: string;
 }
 
-export interface CycleCompound {
+export interface CycleCompound extends SyncIdentity {
   id: number;
   cycle_id: number;
   compound_id: number;
@@ -96,16 +106,16 @@ export interface CycleCompound {
 
 export declare const initDatabase: () => Promise<void>;
 export declare const getAllDataForSync: () => Promise<{
-  weights: (Record<string, any> & { id: number })[];
-  routines: (Record<string, any> & { id: number })[];
-  workouts: (Record<string, any> & { id: number })[];
-  exercises: (Record<string, any> & { id: number })[];
-  exerciseLogs: (Record<string, any> & { id: number })[];
-  diets: (Record<string, any> & { id: number })[];
-  dailyLogs: (Record<string, any> & { id: number })[];
-  meals: (Record<string, any> & { id: number })[];
-  cycles: (Record<string, any> & { id: number })[];
-  cycleCompounds: (Record<string, any> & { id: number })[];
+  weights: (Record<string, any> & { id: number } & SyncIdentity)[];
+  routines: (Record<string, any> & { id: number } & SyncIdentity)[];
+  workouts: (Record<string, any> & { id: number } & SyncIdentity)[];
+  exercises: (Record<string, any> & { id: number } & SyncIdentity)[];
+  exerciseLogs: (Record<string, any> & { id: number } & SyncIdentity)[];
+  diets: (Record<string, any> & { id: number } & SyncIdentity)[];
+  dailyLogs: (Record<string, any> & { id: number } & SyncIdentity)[];
+  meals: (Record<string, any> & { id: number } & SyncIdentity)[];
+  cycles: (Record<string, any> & { id: number } & SyncIdentity)[];
+  cycleCompounds: (Record<string, any> & { id: number } & SyncIdentity)[];
 }>;
 export declare const addWeight: (weight: number, date: string) => Promise<void>;
 export declare const getWeights: () => Promise<WeightRecord[]>;
@@ -176,12 +186,6 @@ export declare const addCycle: (
   endDate: string,
 ) => Promise<void>;
 export declare const deleteCycle: (id: number) => Promise<void>;
-export declare const updateCycle: (
-  id: number,
-  name: string,
-  startDate: string,
-  endDate: string,
-) => Promise<void>;
 
 // Compounds (Reference Data)
 export declare const getCompounds: () => Promise<Compound[]>;
@@ -206,19 +210,20 @@ export declare const addCycleCompound: (
   endDate: string,
 ) => Promise<void>;
 export declare const deleteCycleCompound: (id: number) => Promise<void>;
-export declare const updateCycleCompound: (
-  id: number,
-  amount: number,
-  amountUnit: "mg" | "iu" | "mcg",
-  dosingPeriod: number,
-  startDate: string,
-  endDate: string,
-) => Promise<void>;
 export declare const updateDietOrder: (diets: Diet[]) => Promise<void>;
 export declare const updateDiet: (id: number, name: string) => Promise<void>;
 
 // Daily Logs
 export declare const getDailyLogs: (dietId: number) => Promise<DailyLog[]>;
+export interface DailyLogWithStats extends DailyLog {
+  total_calories: number;
+  total_protein: number;
+  total_carbs: number;
+  total_fats: number;
+}
+export declare const getDailyLogsWithStats: (
+  dietId: number,
+) => Promise<DailyLogWithStats[]>;
 export declare const addDailyLog: (
   dietId: number,
   date: string,
@@ -264,12 +269,30 @@ export declare const setLastSyncTimestamp: (
 export declare const bulkInsertOrUpdate: <T extends Record<string, any>>(
   tableName: string,
   records: T[],
+  expectedOutboxEntries?: SyncOutboxEntry[],
+) => Promise<{ appliedSyncIds: string[]; skippedSyncIds: string[] }>;
+export declare const getSyncTombstones: () => Promise<SyncTombstone[]>;
+export declare const upsertSyncTombstones: (
+  tombstones: SyncTombstone[],
 ) => Promise<void>;
-export declare const clearTable: (tableName: string) => Promise<void>;
+export declare const deleteRecordsBySyncIds: (
+  tombstones: SyncTombstone[],
+) => Promise<void>;
+export declare const getSyncOutboxEntries: () => Promise<SyncOutboxEntry[]>;
+export declare const clearSyncOutboxEntries: (
+  entries: (Pick<SyncOutboxEntry, 'collection_name' | 'sync_id'>
+    & Partial<Pick<SyncOutboxEntry, 'operation' | 'changed_at'>>)[],
+) => Promise<void>;
 
 // APK metadata (local-only, not synced to Firestore)
-export declare const getApkVersionDate: () => Promise<string | null>;
+export interface DownloadedApkMetadata {
+  version_date: string;
+  file_name: string | null;
+  file_path: string | null;
+}
+export declare const getDownloadedApkMetadata: () => Promise<DownloadedApkMetadata | null>;
 export declare const setApkVersionDate: (
   versionDate: string,
   fileName?: string,
+  filePath?: string,
 ) => Promise<void>;

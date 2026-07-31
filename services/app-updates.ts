@@ -1,7 +1,7 @@
 import { Alert, Platform } from "react-native";
 
 import Constants, { ExecutionEnvironment } from "expo-constants";
-import { getApkVersionDate, setApkVersionDate } from "@/services/database";
+import { getDownloadedApkMetadata, setApkVersionDate } from "@/services/database";
 import {
   ApkInfo,
   CONTENTS_API_URL,
@@ -17,6 +17,7 @@ export interface UpdateResult {
   updateAvailable: boolean;
   versionDate?: string;
   downloadUrl?: string;
+  downloadedPath?: string;
   error?: string;
 }
 
@@ -40,6 +41,9 @@ const UNSUPPORTED_NATIVE_RUNTIME_MESSAGE =
   "App updates require a preview or development build because Expo Go cannot load the native downloader.";
 
 let isDownloadInProgress = false;
+
+const errorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 const isExpoGoRuntime = () =>
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -101,14 +105,36 @@ const fetchLatestRemoteApk = async () => {
   return getLatestApk(parseGithubResponse(data));
 };
 
-const toUpdateResult = (latest: ApkInfo): UpdateResult => ({
+const toUpdateResult = (
+  latest: ApkInfo,
+  downloadedPath?: string,
+): UpdateResult => ({
   updateAvailable: true,
   versionDate: latest.version_date,
   downloadUrl: latest.download_url,
+  downloadedPath,
 });
 
+const getInstalledApkVersionDate = () => {
+  const configuredDate = Constants.expoConfig?.extra?.apkVersionDate;
+  return typeof configuredDate === "string" && /^\d{8}$/.test(configuredDate)
+    ? configuredDate
+    : null;
+};
+
+const getPendingDownloadPath = async (versionDate: string) => {
+  const metadata = await getDownloadedApkMetadata();
+  if (metadata?.version_date !== versionDate || !metadata.file_path) return undefined;
+  const FileSystem = await import("expo-file-system/legacy");
+  const fileUri = metadata.file_path.startsWith("file://")
+    ? metadata.file_path
+    : `file://${metadata.file_path}`;
+  const fileInfo = await FileSystem.getInfoAsync(fileUri);
+  return fileInfo.exists ? metadata.file_path : undefined;
+};
+
 const showUpdateFoundNotification = async () => {
-  const Notifications: any = await import("expo-notifications");
+  const Notifications = await import("expo-notifications");
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: false,
@@ -141,8 +167,7 @@ const downloadApkWithDownloadManager = async (
   downloadUrl: string,
   fileName: string,
 ) => {
-  const blobUtilModule: any = await import("react-native-blob-util");
-  const ReactNativeBlobUtil = blobUtilModule.default ?? blobUtilModule;
+  const { default: ReactNativeBlobUtil } = await import("react-native-blob-util");
   const filePath = `${ReactNativeBlobUtil.fs.dirs.DownloadDir}/${fileName}`;
 
   const response = await ReactNativeBlobUtil.config({
@@ -160,15 +185,17 @@ const downloadApkWithDownloadManager = async (
   return response.path() || filePath;
 };
 
-const openUnknownAppSettings = async (intentLauncher: any) => {
+const openUnknownAppSettings = async (
+  intentLauncher: typeof import("expo-intent-launcher"),
+) => {
   await intentLauncher.startActivityAsync(UNKNOWN_APP_SOURCES_ACTION, {
     data: "package:com.jaggerjack61.TrackMyGains",
   });
 };
 
 const promptInstallApk = async (downloadedPath: string) => {
-  const intentLauncher: any = await import("expo-intent-launcher");
-  const FileSystem: any = await import("expo-file-system/legacy");
+  const intentLauncher = await import("expo-intent-launcher");
+  const FileSystem = await import("expo-file-system/legacy");
   const fileUri = downloadedPath.startsWith("file://")
     ? downloadedPath
     : `file://${downloadedPath}`;
@@ -208,15 +235,16 @@ export const checkForUpdates = async (
       return { updateAvailable: false };
     }
 
-    const localDate = await getApkVersionDate();
-    if (!isRemoteApkNewer(latest.version_date, localDate)) {
+    const installedDate = getInstalledApkVersionDate();
+    if (!isRemoteApkNewer(latest.version_date, installedDate)) {
       return { updateAvailable: false };
     }
 
-    return toUpdateResult(latest);
-  } catch (error: any) {
+    const downloadedPath = await getPendingDownloadPath(latest.version_date);
+    return toUpdateResult(latest, downloadedPath);
+  } catch (error: unknown) {
     console.error("[App Updates] Check failed:", error);
-    return { updateAvailable: false, error: error?.message ?? "Unknown error" };
+    return { updateAvailable: false, error: errorMessage(error, "Unknown error") };
   }
 };
 
@@ -232,18 +260,21 @@ export const downloadAndInstallApk = async (
     const fileName = `TrackMyGains-preview-${versionDate}.apk`;
     await showUpdateFoundNotification();
     const downloadedPath = await downloadApkWithDownloadManager(downloadUrl, fileName);
-    await setApkVersionDate(versionDate, fileName);
+    await setApkVersionDate(versionDate, fileName, downloadedPath);
     const shouldInstall = await promptForUpdateInstall(versionDate);
     if (!shouldInstall) return null;
     try {
       await promptInstallApk(downloadedPath);
-    } catch (error: any) {
-      return error?.message ?? "Could not open installer. Enable 'Install unknown apps' in settings.";
+    } catch (error: unknown) {
+      return errorMessage(
+        error,
+        "Could not open installer. Enable 'Install unknown apps' in settings.",
+      );
     }
     return null;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[App Updates] Download/install failed:", error);
-    return error?.message ?? "Download failed";
+    return errorMessage(error, "Download failed");
   } finally {
     isDownloadInProgress = false;
   }
@@ -255,6 +286,23 @@ export const promptForUpdateIfAvailable = async (
   const result = await checkForUpdates(options);
   if (result.error || !result.updateAvailable || !result.downloadUrl || !result.versionDate) {
     return result;
+  }
+
+  if (result.downloadedPath) {
+    const shouldInstall = await promptForUpdateInstall(result.versionDate);
+    if (!shouldInstall) return result;
+    try {
+      await promptInstallApk(result.downloadedPath);
+      return result;
+    } catch (error: unknown) {
+      return {
+        ...result,
+        error: errorMessage(
+          error,
+          "Could not open installer. Enable 'Install unknown apps' in settings.",
+        ),
+      };
+    }
   }
 
   const shouldDownload = await promptForUpdateDownload(result.versionDate);

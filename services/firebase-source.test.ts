@@ -6,15 +6,13 @@ const readFirebaseSource = () =>
   readFileSync(join(__dirname, 'firebase.ts'), 'utf8');
 
 describe('firebase sync source', () => {
-  it('collects a fixed-count local snapshot instead of traversing every parent', () => {
+  it('uses one local snapshot and a stable-ID outbox', () => {
     const source = readFirebaseSource();
-    const collector = source.slice(
-      source.indexOf('const collectLocalData'),
-      source.indexOf('const commitBatches'),
-    );
 
-    expect(collector).toContain('getAllDataForSync');
-    expect(collector).not.toContain('.map(');
+    expect(source).toContain('getAllDataForSync');
+    expect(source).toContain('getSyncOutboxEntries');
+    expect(source).toContain('record.sync_id');
+    expect(source).toContain('getRemoteDocumentId');
   });
 
   it('fetches independent Firestore collections concurrently', () => {
@@ -24,15 +22,26 @@ describe('firebase sync source', () => {
     expect(bidirectionalSync).toContain('await Promise.all([');
   });
 
-  it('propagates Firestore read failures instead of treating them as empty data', () => {
+  it('uses cursored incremental reads after the initial sync', () => {
     const source = readFirebaseSource();
     const fetchCollection = source.slice(
       source.indexOf('const fetchFirestoreCollection'),
-      source.indexOf('const compareAndSync'),
+      source.indexOf('const fetchRemoteTombstones'),
     );
 
-    expect(fetchCollection).toContain('throw error');
-    expect(fetchCollection).not.toContain('return []');
+    expect(fetchCollection).toContain('getLastSyncTimestamp');
+    expect(fetchCollection).toContain("where('server_modified_at', '>',");
+    expect(fetchCollection).toContain("orderBy('server_modified_at', 'asc')");
+    expect(fetchCollection).not.toContain('catch');
+  });
+
+  it('propagates deletions with retained tombstones', () => {
+    const source = readFirebaseSource();
+
+    expect(source).toContain("const TOMBSTONE_COLLECTION = '_tombstones'");
+    expect(source).toContain('mergeTombstones');
+    expect(source).toContain('deleteRecordsBySyncIds');
+    expect(source).toContain('deleteTombstonedRemoteRecords');
   });
 
   it('stops the polling interval while the app is inactive', () => {
@@ -42,20 +51,15 @@ describe('firebase sync source', () => {
       source.indexOf('export const stopFirestoreAutoSync'),
     );
 
-    expect(autoSync).toContain('AppState.currentState === "active"');
+    expect(autoSync).toMatch(/AppState\.currentState === ['"]active['"]/);
     expect(autoSync).toContain('stopInterval()');
+    expect(source).toContain('5 * 60 * 1000');
   });
 
   it('does not reconcile platform-specific compound reference collections', () => {
     const source = readFirebaseSource();
 
-    expect(source).not.toContain('mapDocs("compounds"');
-    expect(source).not.toContain('name: "compounds"');
-  });
-
-  it('verifies legacy compound names before using ID-based metadata', () => {
-    const source = readFirebaseSource();
-
-    expect(source).toContain('compound && compound.name === record.name');
+    expect(source).not.toContain("mapDocs('compounds'");
+    expect(source).not.toContain("name: 'compounds'");
   });
 });

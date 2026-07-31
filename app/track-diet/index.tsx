@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/themed-view';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addDiet, deleteDiet, Diet, getDiets, initDatabase, updateDiet, updateDietOrder } from '@/services/database';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {

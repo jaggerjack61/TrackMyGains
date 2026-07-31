@@ -5,7 +5,7 @@ Cross‑platform fitness tracker built with Expo and React Native. Log workouts,
 - Platforms: Android, iOS, Web
 - Router: Expo Router (file‑based)
 - Persistence: SQLite (via `expo-sqlite`)
-- Syncing:Firebase Firestore
+- Syncing: Firebase Firestore
 - Theming: Light/Dark with a centralized palette
 
 Repository: https://github.com/jaggerjack61/TrackMyGains
@@ -93,7 +93,7 @@ Tips:
 - Light/Dark mode with polished shadows and elevation
 - Parallax header experience
 - SQLite persistence via `expo-sqlite`
-- Syncing:Firebase Firestore
+- Syncing: Firebase Firestore
 
 ## Scripts
 
@@ -103,7 +103,8 @@ npm run web        # Start web build on localhost
 npm run android    # Start Android (emulator or device)
 npm run ios        # Start iOS (simulator; macOS only)
 npm run lint       # ESLint checks
-npm run reset-project  # Replace starter code with a blank app/ folder
+npm test           # Run the test suite
+npm run typecheck  # TypeScript checks
 ```
 
 ## EAS Build Commands
@@ -129,7 +130,7 @@ Polls an EAS build every 5 minutes and downloads the APK once finished.
 npm run download-apk -- -BuildId "<your-build-id>"
 
 # Specify output path
-npm run download-apk -- -BuildId "<your-build-id>" -OutputPath ".\TrackMyGains-preview.apk"
+npm run download-apk -- -BuildId "<your-build-id>" -OutputPath ".\releases\TrackMyGains-preview-20260731.apk"
 
 # Change poll interval (default: 5 minutes)
 npm run download-apk -- -BuildId "<your-build-id>" -PollIntervalMinutes 2
@@ -140,18 +141,18 @@ npm run download-apk -- -BuildId "<your-build-id>" -PollIntervalMinutes 2
 ```powershell
 # PowerShell: build then auto-download
 $buildId = npm run build-apk --silent
-npm run download-apk -- -BuildId $buildId -OutputPath ".\TrackMyGains-preview.apk"
+npm run download-apk -- -BuildId $buildId
 ```
 
 **Note:** Always use `--` before script arguments when running via `npm run` so npm forwards them correctly to the PowerShell scripts.
 
 ### APK Naming Convention
 
-Release APKs follow the pattern `TrackMyGains-preview-YYYYMMDD.apk` (e.g., `TrackMyGains-preview-20260523.apk`). The app's built-in update checker looks for this pattern in the root of the `main` branch on GitHub. The default download script outputs this dated filename automatically.
+Release APKs follow the pattern `TrackMyGains-preview-YYYYMMDD.apk` (e.g., `TrackMyGains-preview-20260523.apk`). The build script writes the same date into `expo.extra.apkVersionDate`, and the download script reuses it for the artifact name. The app's update checker compares that installed-build date with APKs in the root of the `main` branch on GitHub.
 
 ## Requirements
 
-- Node.js and npm
+- Node.js 20+ and npm
 - For Android: Android Studio (emulator) or a device with Expo Go
 - For iOS: Xcode (simulator) or a device with Expo Go (macOS)
 
@@ -174,5 +175,5 @@ The Android package name is configured as `com.jaggerjack61.TrackMyGains`.
 
 ### Dependencies
 
-- **@react-native-async-storage/async-storage**: This project uses version `1.24.0` to maintain compatibility with Firebase.
-- **Expo Doctor**: You may see a warning about the `async-storage` version mismatch. This is intentional and suppressed in `package.json` via `expo.install.exclude`.
+- **@react-native-async-storage/async-storage**: Uses Expo SDK 54's supported `2.2.0` release.
+- **Dependency checks**: `npx expo install --check`, Expo Doctor, and `npm audit` should all pass cleanly.

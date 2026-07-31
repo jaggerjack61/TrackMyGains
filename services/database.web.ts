@@ -1,3 +1,14 @@
+import {
+  SYNC_COLLECTIONS,
+  SYNC_RELATIONSHIPS,
+  createSyncId,
+  getDailyLogSyncId,
+  legacySyncId,
+  type SyncCollectionName,
+  type SyncOutboxEntry,
+  type SyncTombstone,
+} from './sync-records';
+
 const STORAGE_KEYS = {
   weights: 'trackmygains_weights',
   routines: 'trackmygains_routines',
@@ -10,7 +21,30 @@ const STORAGE_KEYS = {
   cycles: 'trackmygains_cycles',
   compounds: 'trackmygains_compounds',
   cycleCompounds: 'trackmygains_cycle_compounds',
+  syncMetadata: 'trackmygains_sync_metadata',
+  syncOutbox: 'trackmygains_sync_outbox',
+  syncTombstones: 'trackmygains_sync_tombstones',
 } as const;
+
+const STORAGE_KEY_BY_COLLECTION: Record<SyncCollectionName, string> = {
+  weights: STORAGE_KEYS.weights,
+  routines: STORAGE_KEYS.routines,
+  workouts: STORAGE_KEYS.workouts,
+  exercises: STORAGE_KEYS.exercises,
+  exercise_logs: STORAGE_KEYS.exerciseLogs,
+  diets: STORAGE_KEYS.diets,
+  daily_logs: STORAGE_KEYS.dailyLogs,
+  meals: STORAGE_KEYS.meals,
+  cycles: STORAGE_KEYS.cycles,
+  cycle_compounds: STORAGE_KEYS.cycleCompounds,
+};
+
+const COLLECTION_BY_STORAGE_KEY = Object.fromEntries(
+  Object.entries(STORAGE_KEY_BY_COLLECTION).map(([collectionName, storageKey]) => [
+    storageKey,
+    collectionName,
+  ]),
+) as Record<string, SyncCollectionName>;
 
 const loadArray = <T>(key: string): T[] => {
   try {
@@ -22,13 +56,114 @@ const loadArray = <T>(key: string): T[] => {
   }
 };
 
-const saveArray = <T>(key: string, data: T[]) => {
+const saveRawArray = <T>(key: string, data: T[]) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
     console.error('Error saving to localStorage', e);
     throw e;
   }
+};
+
+const mergeOutboxEntry = (
+  entries: SyncOutboxEntry[],
+  entry: SyncOutboxEntry,
+) => {
+  const existingIndex = entries.findIndex(existing =>
+    existing.collection_name === entry.collection_name
+    && existing.sync_id === entry.sync_id,
+  );
+  if (existingIndex === -1) entries.push(entry);
+  else entries[existingIndex] = entry;
+};
+
+const mergeTombstone = (
+  tombstones: SyncTombstone[],
+  tombstone: SyncTombstone,
+) => {
+  const existingIndex = tombstones.findIndex(existing =>
+    existing.collection_name === tombstone.collection_name
+    && existing.sync_id === tombstone.sync_id,
+  );
+  if (existingIndex === -1) tombstones.push(tombstone);
+  else if (tombstone.deleted_at > tombstones[existingIndex].deleted_at) {
+    tombstones[existingIndex] = tombstone;
+  }
+};
+
+const ensureRecordSyncId = (
+  collectionName: SyncCollectionName,
+  record: Record<string, unknown>,
+  isExisting: boolean,
+) => {
+  if (typeof record.sync_id === 'string' && record.sync_id.length > 0) return;
+  record.sync_id = isExisting && record.id !== undefined
+    ? legacySyncId(collectionName, String(record.id))
+    : createSyncId();
+};
+
+const saveArray = <T>(
+  key: string,
+  data: T[],
+  options: { trackChanges?: boolean } = {},
+) => {
+  const collectionName = COLLECTION_BY_STORAGE_KEY[key];
+  if (!collectionName) {
+    saveRawArray(key, data);
+    return;
+  }
+
+  const previous = loadArray<Record<string, unknown>>(key);
+  const previousIds = new Set(previous.map(record => String(record.id)));
+  previous.forEach(record => ensureRecordSyncId(collectionName, record, true));
+  const next = data as Record<string, unknown>[];
+  next.forEach(record => ensureRecordSyncId(
+    collectionName,
+    record,
+    previousIds.has(String(record.id)),
+  ));
+  saveRawArray(key, data);
+
+  if (options.trackChanges === false) return;
+
+  const timestamp = nowIso();
+  const previousBySyncId = new Map(previous.map(record => [String(record.sync_id), record]));
+  const nextBySyncId = new Map(next.map(record => [String(record.sync_id), record]));
+  const outbox = loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox);
+  const tombstones = loadArray<SyncTombstone>(STORAGE_KEYS.syncTombstones);
+
+  for (const [syncId, previousRecord] of previousBySyncId) {
+    if (nextBySyncId.has(syncId)) continue;
+    const deletedAt = timestamp;
+    mergeTombstone(tombstones, {
+      collection_name: collectionName,
+      sync_id: syncId,
+      deleted_at: deletedAt,
+    });
+    mergeOutboxEntry(outbox, {
+      collection_name: collectionName,
+      sync_id: syncId,
+      operation: 'delete',
+      changed_at: deletedAt,
+    });
+    void previousRecord;
+  }
+
+  for (const [syncId, nextRecord] of nextBySyncId) {
+    const previousRecord = previousBySyncId.get(syncId);
+    if (previousRecord && JSON.stringify(previousRecord) === JSON.stringify(nextRecord)) {
+      continue;
+    }
+    mergeOutboxEntry(outbox, {
+      collection_name: collectionName,
+      sync_id: syncId,
+      operation: 'upsert',
+      changed_at: timestamp,
+    });
+  }
+
+  saveRawArray(STORAGE_KEYS.syncTombstones, tombstones);
+  saveRawArray(STORAGE_KEYS.syncOutbox, outbox);
 };
 
 const nextId = (records: readonly { id?: unknown }[]): number => {
@@ -50,7 +185,100 @@ const sortByCreatedAtDesc = (a: { created_at: string }, b: { created_at: string 
   new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 
 export const initDatabase = async () => {
-  console.log('Web environment detected, using localStorage');
+  const metadata = loadArray<{ key: string; value: string }>(STORAGE_KEYS.syncMetadata);
+  const hasBootstrappedOutbox = metadata.some(item => item.key === '__outbox_schema_v1');
+  const outbox = loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox);
+  const tombstones = loadArray<SyncTombstone>(STORAGE_KEYS.syncTombstones);
+
+  for (const collectionName of SYNC_COLLECTIONS) {
+    const storageKey = STORAGE_KEY_BY_COLLECTION[collectionName];
+    const records = loadArray<Record<string, unknown>>(storageKey);
+    let changed = false;
+    for (const record of records) {
+      if (typeof record.sync_id === 'string' && record.sync_id.length > 0) continue;
+      ensureRecordSyncId(collectionName, record, true);
+      changed = true;
+    }
+    if (changed) saveRawArray(storageKey, records);
+  }
+
+  const storedDailyLogs = loadArray<{
+    id: number;
+    sync_id: string;
+    diet_id: number;
+    date: string;
+  }>(STORAGE_KEYS.dailyLogs);
+  const dailyLogGroups = new Map<string, typeof storedDailyLogs>();
+  for (const dailyLog of storedDailyLogs) {
+    const key = `${dailyLog.diet_id}\0${dailyLog.date}`;
+    const group = dailyLogGroups.get(key) ?? [];
+    group.push(dailyLog);
+    dailyLogGroups.set(key, group);
+  }
+  const canonicalIdByDuplicateId = new Map<number, number>();
+  const migrationTimestamp = nowIso();
+  for (const group of dailyLogGroups.values()) {
+    if (group.length < 2) continue;
+    const [canonical, ...duplicates] = [...group]
+      .sort((first, second) => first.sync_id.localeCompare(second.sync_id));
+    for (const duplicate of duplicates) {
+      canonicalIdByDuplicateId.set(duplicate.id, canonical.id);
+      mergeTombstone(tombstones, {
+        collection_name: 'daily_logs',
+        sync_id: duplicate.sync_id,
+        deleted_at: migrationTimestamp,
+      });
+      mergeOutboxEntry(outbox, {
+        collection_name: 'daily_logs',
+        sync_id: duplicate.sync_id,
+        operation: 'delete',
+        changed_at: migrationTimestamp,
+      });
+    }
+  }
+
+  if (canonicalIdByDuplicateId.size > 0) {
+    saveRawArray(
+      STORAGE_KEYS.dailyLogs,
+      storedDailyLogs.filter(log => !canonicalIdByDuplicateId.has(log.id)),
+    );
+    const storedMeals = loadArray<Record<string, unknown> & {
+      daily_log_id: number;
+      sync_id: string;
+    }>(STORAGE_KEYS.meals);
+    for (const meal of storedMeals) {
+      const canonicalId = canonicalIdByDuplicateId.get(Number(meal.daily_log_id));
+      if (canonicalId === undefined) continue;
+      meal.daily_log_id = canonicalId;
+      mergeOutboxEntry(outbox, {
+        collection_name: 'meals',
+        sync_id: String(meal.sync_id),
+        operation: 'upsert',
+        changed_at: migrationTimestamp,
+      });
+    }
+    saveRawArray(STORAGE_KEYS.meals, storedMeals);
+    saveRawArray(STORAGE_KEYS.syncTombstones, tombstones);
+  }
+
+  if (!hasBootstrappedOutbox) {
+    for (const collectionName of SYNC_COLLECTIONS) {
+      const records = loadArray<Record<string, unknown>>(
+        STORAGE_KEY_BY_COLLECTION[collectionName],
+      );
+      for (const record of records) {
+        mergeOutboxEntry(outbox, {
+          collection_name: collectionName,
+          sync_id: String(record.sync_id),
+          operation: 'upsert',
+          changed_at: nowIso(),
+        });
+      }
+    }
+    metadata.push({ key: '__outbox_schema_v1', value: '1' });
+    saveRawArray(STORAGE_KEYS.syncMetadata, metadata);
+  }
+  saveRawArray(STORAGE_KEYS.syncOutbox, outbox);
 };
 
 const weights = {
@@ -393,9 +621,21 @@ const dailyLogs = {
   },
   add: async (dietId: number, date: string) => {
     const logs = loadArray<any>(STORAGE_KEYS.dailyLogs);
+    const existing = logs.find(log => log.diet_id === dietId && log.date === date);
+    if (existing) return existing.id;
+    const diet = loadArray<{ id: number; sync_id?: string }>(STORAGE_KEYS.diets)
+      .find(record => record.id === dietId);
+    if (!diet?.sync_id) throw new Error('Diet not found');
     const id = nextId(logs);
     const timestamp = nowIso();
-    logs.push({ id, diet_id: dietId, date, created_at: timestamp, last_modified: timestamp });
+    logs.push({
+      id,
+      sync_id: getDailyLogSyncId(diet.sync_id, date),
+      diet_id: dietId,
+      date,
+      created_at: timestamp,
+      last_modified: timestamp,
+    });
     saveArray(STORAGE_KEYS.dailyLogs, logs);
     return id;
   },
@@ -415,6 +655,46 @@ const dailyLogs = {
 };
 
 export const getDailyLogs = dailyLogs.list;
+export const getDailyLogsWithStats = async (dietId: number) => {
+  const logs = await dailyLogs.list(dietId);
+  const allMeals = loadArray<any>(STORAGE_KEYS.meals);
+  const totalsByLog = new Map<number, {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+  }>();
+
+  for (const meal of allMeals) {
+    const totals = totalsByLog.get(meal.daily_log_id) ?? {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+    };
+    totals.calories += Number(meal.calories) || 0;
+    totals.protein += Number(meal.protein) || 0;
+    totals.carbs += Number(meal.carbs) || 0;
+    totals.fats += Number(meal.fats) || 0;
+    totalsByLog.set(meal.daily_log_id, totals);
+  }
+
+  return logs.map(log => {
+    const totals = totalsByLog.get(log.id) ?? {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+    };
+    return {
+      ...log,
+      total_calories: totals.calories,
+      total_protein: totals.protein,
+      total_carbs: totals.carbs,
+      total_fats: totals.fats,
+    };
+  });
+};
 export const getDailyLogByDate = dailyLogs.getByDate;
 export const addDailyLog = dailyLogs.add;
 export const deleteDailyLog = dailyLogs.remove;
@@ -503,20 +783,12 @@ const cycles = {
       cycleCompounds.filter(cc => cc.cycle_id !== id)
     );
   },
-  update: async (id: number, name: string, startDate: string, endDate: string) => {
-    const cycles = loadArray<any>(STORAGE_KEYS.cycles);
-    const cycle = cycles.find((c: any) => c.id === id);
-    if (!cycle) return;
-    updateRecord(cycle, { name, start_date: startDate, end_date: endDate });
-    saveArray(STORAGE_KEYS.cycles, cycles);
-  },
 };
 
 export const getCycles = cycles.list;
 export const getCycle = cycles.get;
 export const addCycle = cycles.add;
 export const deleteCycle = cycles.remove;
-export const updateCycle = cycles.update;
 
 const defaultCompounds = [
   { id: 1, name: 'Testosterone Enanthate', type: 'injectable', half_life_hours: 108 },
@@ -671,84 +943,107 @@ const cycleCompounds = {
       cycleCompounds.filter(cc => cc.id !== id)
     );
   },
-  update: async (
-    id: number,
-    amount: number,
-    amountUnit: 'mg' | 'iu' | 'mcg',
-    dosingPeriod: number,
-    startDate: string,
-    endDate: string
-  ) => {
-    const cycleCompounds = loadArray<any>(STORAGE_KEYS.cycleCompounds);
-    const cc = cycleCompounds.find((c: any) => c.id === id);
-    if (!cc) return;
-    updateRecord(cc, {
-      amount,
-      amount_unit: amountUnit,
-      dosing_period: dosingPeriod,
-      start_date: startDate,
-      end_date: endDate,
-    });
-    saveArray(STORAGE_KEYS.cycleCompounds, cycleCompounds);
-  },
 };
 
 export const getCycleCompounds = cycleCompounds.list;
 export const addCycleCompound = cycleCompounds.add;
 export const deleteCycleCompound = cycleCompounds.remove;
-export const updateCycleCompound = cycleCompounds.update;
 
 export const getAllDataForSync = async () => {
+  await initDatabase();
   const compounds = await getCompounds();
   const compoundsById = new Map(compounds.map(compound => [compound.id, compound]));
+  const routines = loadArray<any>(STORAGE_KEYS.routines);
+  const workouts = loadArray<any>(STORAGE_KEYS.workouts);
+  const exercises = loadArray<any>(STORAGE_KEYS.exercises);
+  const diets = loadArray<any>(STORAGE_KEYS.diets);
+  const dailyLogs = loadArray<any>(STORAGE_KEYS.dailyLogs);
+  const cycles = loadArray<any>(STORAGE_KEYS.cycles);
+  const routineSyncIds = new Map(routines.map(record => [record.id, record.sync_id]));
+  const workoutSyncIds = new Map(workouts.map(record => [record.id, record.sync_id]));
+  const exerciseSyncIds = new Map(exercises.map(record => [record.id, record.sync_id]));
+  const dietSyncIds = new Map(diets.map(record => [record.id, record.sync_id]));
+  const dailyLogSyncIds = new Map(dailyLogs.map(record => [record.id, record.sync_id]));
+  const cycleSyncIds = new Map(cycles.map(record => [record.id, record.sync_id]));
   const cycleCompounds = loadArray<any>(STORAGE_KEYS.cycleCompounds).map(record => {
     const compound = compoundsById.get(record.compound_id);
     return compound
-      ? { ...record, type: compound.type, half_life_hours: compound.half_life_hours }
+      ? {
+          ...record,
+          cycle_sync_id: cycleSyncIds.get(record.cycle_id),
+          type: compound.type,
+          half_life_hours: compound.half_life_hours,
+        }
       : record;
   });
 
   return {
     weights: loadArray<any>(STORAGE_KEYS.weights),
-    routines: loadArray<any>(STORAGE_KEYS.routines),
-    workouts: loadArray<any>(STORAGE_KEYS.workouts),
-    exercises: loadArray<any>(STORAGE_KEYS.exercises),
-    exerciseLogs: loadArray<any>(STORAGE_KEYS.exerciseLogs),
-    diets: loadArray<any>(STORAGE_KEYS.diets),
-    dailyLogs: loadArray<any>(STORAGE_KEYS.dailyLogs),
-    meals: loadArray<any>(STORAGE_KEYS.meals),
-    cycles: loadArray<any>(STORAGE_KEYS.cycles),
+    routines,
+    workouts: workouts.map(record => ({
+      ...record,
+      routine_sync_id: routineSyncIds.get(record.routine_id),
+    })),
+    exercises: exercises.map(record => ({
+      ...record,
+      workout_sync_id: workoutSyncIds.get(record.workout_id),
+    })),
+    exerciseLogs: loadArray<any>(STORAGE_KEYS.exerciseLogs).map(record => ({
+      ...record,
+      exercise_sync_id: exerciseSyncIds.get(record.exercise_id),
+    })),
+    diets,
+    dailyLogs: dailyLogs.map(record => ({
+      ...record,
+      diet_sync_id: dietSyncIds.get(record.diet_id),
+    })),
+    meals: loadArray<any>(STORAGE_KEYS.meals).map(record => ({
+      ...record,
+      daily_log_sync_id: dailyLogSyncIds.get(record.daily_log_id),
+    })),
+    cycles,
     cycleCompounds,
   };
-};
-
-const syncStorageKeys: Record<string, string> = {
-  weights: STORAGE_KEYS.weights,
-  routines: STORAGE_KEYS.routines,
-  workouts: STORAGE_KEYS.workouts,
-  exercises: STORAGE_KEYS.exercises,
-  exercise_logs: STORAGE_KEYS.exerciseLogs,
-  diets: STORAGE_KEYS.diets,
-  daily_logs: STORAGE_KEYS.dailyLogs,
-  meals: STORAGE_KEYS.meals,
-  cycles: STORAGE_KEYS.cycles,
-  compounds: STORAGE_KEYS.compounds,
-  cycle_compounds: STORAGE_KEYS.cycleCompounds,
 };
 
 export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   tableName: string,
   records: T[],
+  expectedOutboxEntries?: SyncOutboxEntry[],
 ) => {
-  if (records.length === 0) return;
+  if (records.length === 0) {
+    return { appliedSyncIds: [], skippedSyncIds: [] };
+  }
 
-  const storageKey = syncStorageKeys[tableName];
-  if (!storageKey) throw new Error(`Unsupported sync table: ${tableName}`);
+  await initDatabase();
+  const collectionName = SYNC_COLLECTIONS.find(name => name === tableName);
+  if (!collectionName) throw new Error(`Unsupported sync table: ${tableName}`);
 
+  const storageKey = STORAGE_KEY_BY_COLLECTION[collectionName];
   const storedRecords = loadArray<Record<string, any>>(storageKey);
   const recordIndexes = new Map(
-    storedRecords.map((record, index) => [String(record.id), index]),
+    storedRecords.map((record, index) => [String(record.sync_id), index]),
   );
+  const relationship = SYNC_RELATIONSHIPS[collectionName];
+  const expectedOutboxBySyncId = new Map(
+    expectedOutboxEntries?.map(entry => [entry.sync_id, entry]),
+  );
+  const currentOutboxBySyncId = new Map(
+    loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox)
+      .filter(entry => entry.collection_name === collectionName)
+      .map(entry => [entry.sync_id, entry]),
+  );
+  const appliedSyncIds: string[] = [];
+  const skippedSyncIds: string[] = [];
+  const parentIdsBySyncId = new Map<string, number>();
+  if (relationship) {
+    const parentRecords = loadArray<{ id: number; sync_id: string }>(
+      STORAGE_KEY_BY_COLLECTION[relationship.parentCollection],
+    );
+    parentRecords.forEach(parent =>
+      parentIdsBySyncId.set(parent.sync_id, parent.id),
+    );
+  }
   const localCompounds = tableName === 'cycle_compounds' ? await getCompounds() : null;
   const compoundsByName = new Map<string, any[]>();
   for (const compound of localCompounds ?? []) {
@@ -759,8 +1054,39 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   let compoundsChanged = false;
 
   for (const record of records) {
-    const id = Number(record.id);
-    if (!Number.isFinite(id)) throw new Error(`Invalid record ID for ${tableName}`);
+    if (typeof record.sync_id !== 'string' || record.sync_id.length === 0) {
+      throw new Error(`Missing sync ID for ${tableName}`);
+    }
+
+    if (expectedOutboxEntries) {
+      const currentOutbox = currentOutboxBySyncId.get(record.sync_id);
+      const expectedOutbox = expectedOutboxBySyncId.get(record.sync_id);
+      const outboxChanged = currentOutbox?.operation !== expectedOutbox?.operation
+        || currentOutbox?.changed_at !== expectedOutbox?.changed_at;
+      if (outboxChanged) {
+        skippedSyncIds.push(record.sync_id);
+        continue;
+      }
+    }
+
+    const normalizedRecord: Record<string, any> = { ...record };
+    delete normalizedRecord.id;
+    delete normalizedRecord.server_modified_at;
+
+    if (relationship) {
+      const parentSyncId = normalizedRecord[relationship.remoteKey];
+      if (typeof parentSyncId !== 'string') {
+        throw new Error(`Missing ${relationship.remoteKey} for ${tableName}`);
+      }
+      const parentId = parentIdsBySyncId.get(parentSyncId);
+      if (parentId === undefined) {
+        throw new Error(
+          `Missing parent ${relationship.parentCollection}/${parentSyncId}`,
+        );
+      }
+      normalizedRecord[relationship.localKey] = parentId;
+      delete normalizedRecord[relationship.remoteKey];
+    }
 
     const isValidType = ['injectable', 'oral', 'peptide'].includes(record.type);
     const halfLifeHours = Number(record.half_life_hours);
@@ -799,35 +1125,130 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
       compoundsChanged = true;
     }
 
-    const normalizedRecord = {
-      ...record,
-      id,
-      ...(localCompoundId === undefined ? {} : { compound_id: localCompoundId }),
-    };
+    if (localCompoundId !== undefined) {
+      normalizedRecord.compound_id = localCompoundId;
+    }
     delete normalizedRecord.type;
     delete normalizedRecord.half_life_hours;
-    const existingIndex = recordIndexes.get(String(id));
+    const existingIndex = recordIndexes.get(record.sync_id);
     if (existingIndex === undefined) {
-      recordIndexes.set(String(id), storedRecords.length);
-      storedRecords.push(normalizedRecord);
+      normalizedRecord.id = nextId(storedRecords);
+      recordIndexes.set(record.sync_id, storedRecords.length);
+      storedRecords.push(normalizedRecord as Record<string, any>);
     } else {
       storedRecords[existingIndex] = {
         ...storedRecords[existingIndex],
         ...normalizedRecord,
       };
     }
+    appliedSyncIds.push(record.sync_id);
   }
 
   if (compoundsChanged && localCompounds) {
     saveArray(STORAGE_KEYS.compounds, localCompounds);
   }
-  saveArray(storageKey, storedRecords);
+  saveArray(storageKey, storedRecords, { trackChanges: false });
+  await clearSyncOutboxEntries(appliedSyncIds.map(syncId => ({
+    collection_name: collectionName,
+    sync_id: syncId,
+  })));
+  return { appliedSyncIds, skippedSyncIds };
 };
 
-export const clearTable = async (tableName: string) => {
-  const storageKey = syncStorageKeys[tableName];
-  if (!storageKey) throw new Error(`Unsupported sync table: ${tableName}`);
-  saveArray(storageKey, []);
+export const getLastSyncTimestamp = async (
+  collectionName: string,
+): Promise<string | null> => {
+  const metadata = loadArray<{ key: string; value: string }>(STORAGE_KEYS.syncMetadata);
+  return metadata.find(item => item.key === collectionName)?.value ?? null;
+};
+
+export const setLastSyncTimestamp = async (
+  collectionName: string,
+  timestamp: string,
+) => {
+  const metadata = loadArray<{ key: string; value: string }>(STORAGE_KEYS.syncMetadata);
+  const existing = metadata.find(item => item.key === collectionName);
+  if (existing) existing.value = timestamp;
+  else metadata.push({ key: collectionName, value: timestamp });
+  saveRawArray(STORAGE_KEYS.syncMetadata, metadata);
+};
+
+export const getSyncTombstones = async (): Promise<SyncTombstone[]> =>
+  loadArray<SyncTombstone>(STORAGE_KEYS.syncTombstones);
+
+export const upsertSyncTombstones = async (tombstones: SyncTombstone[]) => {
+  const stored = loadArray<SyncTombstone>(STORAGE_KEYS.syncTombstones);
+  tombstones.forEach(tombstone => mergeTombstone(stored, tombstone));
+  saveRawArray(STORAGE_KEYS.syncTombstones, stored);
+};
+
+const DELETE_ORDER: readonly SyncCollectionName[] = [
+  'exercise_logs',
+  'exercises',
+  'workouts',
+  'meals',
+  'daily_logs',
+  'cycle_compounds',
+  'routines',
+  'diets',
+  'cycles',
+  'weights',
+];
+
+export const deleteRecordsBySyncIds = async (tombstones: SyncTombstone[]) => {
+  for (const collectionName of DELETE_ORDER) {
+    const syncIds = new Set(
+      tombstones
+        .filter(tombstone => tombstone.collection_name === collectionName)
+        .map(tombstone => tombstone.sync_id),
+    );
+    if (syncIds.size === 0) continue;
+    const storageKey = STORAGE_KEY_BY_COLLECTION[collectionName];
+    const records = loadArray<Record<string, any>>(storageKey);
+    const matchingIds = records
+      .filter(record => syncIds.has(String(record.sync_id)))
+      .map(record => Number(record.id));
+
+    if (collectionName === 'routines') {
+      for (const id of matchingIds) await routines.remove(id);
+    } else if (collectionName === 'workouts') {
+      for (const id of matchingIds) await workouts.remove(id);
+    } else if (collectionName === 'exercises') {
+      for (const id of matchingIds) await exercises.remove(id);
+    } else if (collectionName === 'diets') {
+      for (const id of matchingIds) await diets.remove(id);
+    } else if (collectionName === 'daily_logs') {
+      for (const id of matchingIds) await dailyLogs.remove(id);
+    } else if (collectionName === 'cycles') {
+      for (const id of matchingIds) await cycles.remove(id);
+    } else {
+      saveArray(
+        storageKey,
+        records.filter(record => !syncIds.has(String(record.sync_id))),
+      );
+    }
+  }
+};
+
+export const getSyncOutboxEntries = async (): Promise<SyncOutboxEntry[]> =>
+  loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox)
+    .sort((first, second) => first.changed_at.localeCompare(second.changed_at));
+
+export const clearSyncOutboxEntries = async (
+  entries: (Pick<SyncOutboxEntry, 'collection_name' | 'sync_id'>
+    & Partial<Pick<SyncOutboxEntry, 'operation' | 'changed_at'>>)[],
+) => {
+  if (entries.length === 0) return;
+  const outbox = loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox);
+  saveRawArray(
+    STORAGE_KEYS.syncOutbox,
+    outbox.filter(stored => !entries.some(entry => (
+      entry.collection_name === stored.collection_name
+      && entry.sync_id === stored.sync_id
+      && (!entry.operation || entry.operation === stored.operation)
+      && (!entry.changed_at || entry.changed_at === stored.changed_at)
+    ))),
+  );
 };
 
 export const exportDatabase = async () => {
@@ -843,20 +1264,35 @@ export const importDatabase = async () => {
 // APK metadata (local-only, not synced)
 const APK_STORAGE_KEY = 'trackmygains_apk';
 
-export const getApkVersionDate = async (): Promise<string | null> => {
+export type DownloadedApkMetadata = {
+  version_date: string;
+  file_name: string | null;
+  file_path: string | null;
+};
+
+export const getDownloadedApkMetadata = async (): Promise<DownloadedApkMetadata | null> => {
   try {
     const data = localStorage.getItem(APK_STORAGE_KEY);
-    return data ? (JSON.parse(data) as { version_date: string }).version_date : null;
+    return data ? JSON.parse(data) as DownloadedApkMetadata : null;
   } catch {
     return null;
   }
 };
 
-export const setApkVersionDate = async (versionDate: string, _fileName?: string) => {
+export const setApkVersionDate = async (
+  versionDate: string,
+  fileName?: string,
+  filePath?: string,
+) => {
   try {
     localStorage.setItem(
       APK_STORAGE_KEY,
-      JSON.stringify({ version_date: versionDate, updated_at: new Date().toISOString() }),
+      JSON.stringify({
+        version_date: versionDate,
+        file_name: fileName ?? null,
+        file_path: filePath ?? null,
+        updated_at: new Date().toISOString(),
+      }),
     );
   } catch (e) {
     console.error('Error saving APK metadata', e);

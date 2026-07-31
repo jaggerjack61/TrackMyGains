@@ -12,6 +12,9 @@
 .PARAMETER Platform
     The platform to build for. Default: android.
 
+.PARAMETER VersionDate
+    The YYYYMMDD value baked into the app for update comparisons. Defaults to today.
+
 .EXAMPLE
     .\scripts\build-apk.ps1
     # Returns the build ID after starting a preview Android build.
@@ -29,12 +32,38 @@ param(
     [string]$Profile = "preview",
 
     [Parameter(Mandatory = $false)]
-    [string]$Platform = "android"
+    [string]$Platform = "android",
+
+    [Parameter(Mandatory = $false)]
+    [string]$VersionDate = (Get-Date -Format "yyyyMMdd")
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Starting EAS build (profile: $Profile, platform: $Platform)..." -ForegroundColor Cyan
+if ($VersionDate -notmatch '^\d{8}$') {
+    throw "VersionDate must use YYYYMMDD format."
+}
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$appJsonPath = Join-Path $repoRoot "app.json"
+$updateAppConfigScript = @'
+const fs = require("node:fs");
+
+const [appJsonPath, versionDate] = process.argv.slice(1);
+const rawConfig = fs.readFileSync(appJsonPath, "utf8").replace(/^\uFEFF/, "");
+const appConfig = JSON.parse(rawConfig);
+
+appConfig.expo.extra ??= {};
+appConfig.expo.extra.apkVersionDate = versionDate;
+fs.writeFileSync(appJsonPath, `${JSON.stringify(appConfig, null, 2)}\n`, "utf8");
+'@
+
+& node -e $updateAppConfigScript $appJsonPath $VersionDate
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not update apkVersionDate in app.json."
+}
+
+Write-Host "Starting EAS build (profile: $Profile, platform: $Platform, version date: $VersionDate)..." -ForegroundColor Cyan
 
 # Run the build command and capture all output (stdout + stderr)
 $output = & npx eas-cli build --platform $Platform --profile $Profile --non-interactive --no-wait 2>&1

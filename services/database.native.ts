@@ -6,9 +6,101 @@ import * as Sharing from "expo-sharing";
 import * as SQLite from "expo-sqlite";
 import { Platform } from "react-native";
 
+import {
+  SYNC_COLLECTIONS,
+  SYNC_RELATIONSHIPS,
+  getDailyLogSyncId,
+  type SyncCollectionName,
+  type SyncOutboxEntry,
+  type SyncTombstone,
+} from "@/services/sync-records";
+
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<void> | null = null;
 let databaseOperationQueue: Promise<unknown> = Promise.resolve();
+
+const TABLE_BY_COLLECTION: Record<SyncCollectionName, string> = {
+  weights: "weights",
+  routines: "routines",
+  workouts: "workouts",
+  exercises: "exercises",
+  exercise_logs: "exercise_logs",
+  diets: "diets",
+  daily_logs: "daily_logs",
+  meals: "meals",
+  cycles: "cycles",
+  cycle_compounds: "cycle_compounds",
+};
+
+const COLLECTION_BY_TABLE = Object.fromEntries(
+  Object.entries(TABLE_BY_COLLECTION).map(([collectionName, tableName]) => [
+    tableName,
+    collectionName,
+  ]),
+) as Record<string, SyncCollectionName>;
+
+const LOCAL_COLUMNS_BY_COLLECTION: Record<
+  SyncCollectionName,
+  readonly string[]
+> = {
+  weights: ["sync_id", "weight", "date", "last_modified"],
+  routines: ["sync_id", "name", "created_at", "sort_order", "last_modified"],
+  workouts: [
+    "sync_id",
+    "routine_id",
+    "name",
+    "date",
+    "created_at",
+    "sort_order",
+    "last_modified",
+  ],
+  exercises: ["sync_id", "workout_id", "name", "created_at", "last_modified"],
+  exercise_logs: [
+    "sync_id",
+    "exercise_id",
+    "date",
+    "weight",
+    "weight_unit",
+    "reps",
+    "sets",
+    "created_at",
+    "last_modified",
+  ],
+  diets: ["sync_id", "name", "created_at", "sort_order", "last_modified"],
+  daily_logs: ["sync_id", "diet_id", "date", "created_at", "last_modified"],
+  meals: [
+    "sync_id",
+    "daily_log_id",
+    "name",
+    "calories",
+    "protein",
+    "carbs",
+    "fats",
+    "created_at",
+    "last_modified",
+  ],
+  cycles: [
+    "sync_id",
+    "name",
+    "start_date",
+    "end_date",
+    "created_at",
+    "last_modified",
+  ],
+  cycle_compounds: [
+    "sync_id",
+    "cycle_id",
+    "compound_id",
+    "name",
+    "amount",
+    "amount_unit",
+    "dosing_period",
+    "start_date",
+    "end_date",
+    "created_at",
+    "last_modified",
+  ],
+};
 
 const queueDatabaseOperation = async <T>(operation: () => Promise<T>) => {
   const queuedOperation = databaseOperationQueue.then(operation, operation);
@@ -31,12 +123,14 @@ export const initDatabase = async () => {
         PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS weights (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           weight REAL NOT NULL,
           date TEXT NOT NULL,
           last_modified TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS routines (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           name TEXT NOT NULL,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           sort_order INTEGER DEFAULT 0,
@@ -44,6 +138,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS workouts (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           routine_id INTEGER NOT NULL,
           name TEXT NOT NULL,
           date TEXT NOT NULL,
@@ -54,6 +149,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS exercises (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           workout_id INTEGER NOT NULL,
           name TEXT NOT NULL,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +158,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS exercise_logs (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           exercise_id INTEGER NOT NULL,
           date TEXT NOT NULL,
           weight REAL NOT NULL,
@@ -74,6 +171,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS diets (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           name TEXT NOT NULL,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           sort_order INTEGER DEFAULT 0,
@@ -81,6 +179,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS daily_logs (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           diet_id INTEGER NOT NULL,
           date TEXT NOT NULL,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -89,6 +188,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS meals (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           daily_log_id INTEGER NOT NULL,
           name TEXT NOT NULL,
           calories INTEGER NOT NULL,
@@ -101,6 +201,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS cycles (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           name TEXT NOT NULL,
           start_date TEXT NOT NULL,
           end_date TEXT NOT NULL,
@@ -117,6 +218,7 @@ export const initDatabase = async () => {
         );
         CREATE TABLE IF NOT EXISTS cycle_compounds (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sync_id TEXT UNIQUE,
           cycle_id INTEGER NOT NULL,
           compound_id INTEGER NOT NULL,
           name TEXT NOT NULL,
@@ -131,14 +233,27 @@ export const initDatabase = async () => {
           FOREIGN KEY (compound_id) REFERENCES compounds (id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS sync_metadata (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
           collection_name TEXT NOT NULL UNIQUE,
           last_sync_timestamp TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sync_tombstones (
+          collection_name TEXT NOT NULL,
+          sync_id TEXT NOT NULL,
+          deleted_at TEXT NOT NULL,
+          PRIMARY KEY (collection_name, sync_id)
+        );
+        CREATE TABLE IF NOT EXISTS sync_outbox (
+          collection_name TEXT NOT NULL,
+          sync_id TEXT NOT NULL,
+          operation TEXT NOT NULL CHECK(operation IN ('upsert', 'delete')),
+          changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (collection_name, sync_id)
         );
         CREATE TABLE IF NOT EXISTS apks (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           version_date TEXT NOT NULL,
           file_name TEXT,
+          file_path TEXT,
           downloaded_at TEXT,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -393,6 +508,160 @@ export const initDatabase = async () => {
         `);
       }
 
+      const apkColumns = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(apks)",
+      );
+      if (!apkColumns.some(column => column.name === "file_path")) {
+        await db.execAsync("ALTER TABLE apks ADD COLUMN file_path TEXT;");
+      }
+
+      for (const collectionName of SYNC_COLLECTIONS) {
+        const table = TABLE_BY_COLLECTION[collectionName];
+        if (!columnsByTable.get(table)?.has("sync_id")) {
+          await db.execAsync(`ALTER TABLE ${table} ADD COLUMN sync_id TEXT;`);
+        }
+
+        await db.runAsync(
+          `UPDATE ${table}
+           SET sync_id = ? || id
+           WHERE sync_id IS NULL OR sync_id = ''`,
+          `legacy:${collectionName}:`,
+        );
+        await db.execAsync(
+          `CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_sync_id ON ${table}(sync_id);`,
+        );
+      }
+
+      // Merge any legacy duplicate diet days before enforcing calendar-day uniqueness.
+      await db.execAsync(`
+        INSERT INTO sync_tombstones (collection_name, sync_id, deleted_at)
+        SELECT 'daily_logs', duplicate.sync_id,
+               STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        FROM daily_logs duplicate
+        WHERE duplicate.sync_id != (
+          SELECT MIN(candidate.sync_id)
+          FROM daily_logs candidate
+          WHERE candidate.diet_id = duplicate.diet_id
+            AND candidate.date = duplicate.date
+        )
+        ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+          deleted_at = excluded.deleted_at;
+
+        INSERT INTO sync_outbox (collection_name, sync_id, operation, changed_at)
+        SELECT 'daily_logs', duplicate.sync_id, 'delete',
+               STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+        FROM daily_logs duplicate
+        WHERE duplicate.sync_id != (
+          SELECT MIN(candidate.sync_id)
+          FROM daily_logs candidate
+          WHERE candidate.diet_id = duplicate.diet_id
+            AND candidate.date = duplicate.date
+        )
+        ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+          operation = 'delete',
+          changed_at = excluded.changed_at;
+
+        UPDATE meals
+        SET daily_log_id = (
+          SELECT matching.id
+          FROM daily_logs current
+          JOIN daily_logs matching
+            ON matching.diet_id = current.diet_id
+           AND matching.date = current.date
+          WHERE current.id = meals.daily_log_id
+          ORDER BY matching.sync_id ASC
+          LIMIT 1
+        )
+        WHERE daily_log_id IN (SELECT id FROM daily_logs);
+
+        DELETE FROM daily_logs
+        WHERE sync_id != (
+          SELECT MIN(candidate.sync_id)
+          FROM daily_logs candidate
+          WHERE candidate.diet_id = daily_logs.diet_id
+            AND candidate.date = daily_logs.date
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_logs_unique_date
+          ON daily_logs(diet_id, date);
+      `);
+
+      for (const collectionName of SYNC_COLLECTIONS) {
+        const table = TABLE_BY_COLLECTION[collectionName];
+        await db.execAsync(`
+          CREATE TRIGGER IF NOT EXISTS set_${table}_sync_id_after_insert
+          AFTER INSERT ON ${table}
+          WHEN NEW.sync_id IS NULL OR NEW.sync_id = ''
+          BEGIN
+            UPDATE ${table}
+            SET sync_id = 'uuid:' || lower(hex(randomblob(16)))
+            WHERE id = NEW.id;
+          END;
+
+          CREATE TRIGGER IF NOT EXISTS queue_${table}_sync_after_insert
+          AFTER INSERT ON ${table}
+          WHEN NEW.sync_id IS NOT NULL AND NEW.sync_id != ''
+          BEGIN
+            INSERT INTO sync_outbox (collection_name, sync_id, operation, changed_at)
+            VALUES ('${collectionName}', NEW.sync_id, 'upsert', STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+              operation = 'upsert',
+              changed_at = excluded.changed_at;
+          END;
+
+          CREATE TRIGGER IF NOT EXISTS queue_${table}_sync_after_update
+          AFTER UPDATE ON ${table}
+          WHEN NEW.sync_id IS NOT NULL AND NEW.sync_id != ''
+          BEGIN
+            INSERT INTO sync_outbox (collection_name, sync_id, operation, changed_at)
+            VALUES ('${collectionName}', NEW.sync_id, 'upsert', STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+              operation = 'upsert',
+              changed_at = excluded.changed_at;
+          END;
+
+          CREATE TRIGGER IF NOT EXISTS tombstone_${table}_before_delete
+          BEFORE DELETE ON ${table}
+          WHEN OLD.sync_id IS NOT NULL AND OLD.sync_id != ''
+          BEGIN
+            INSERT INTO sync_tombstones (collection_name, sync_id, deleted_at)
+            VALUES ('${collectionName}', OLD.sync_id, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+              deleted_at = excluded.deleted_at;
+            INSERT INTO sync_outbox (collection_name, sync_id, operation, changed_at)
+            VALUES ('${collectionName}', OLD.sync_id, 'delete', STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+              operation = 'delete',
+              changed_at = excluded.changed_at;
+          END;
+        `);
+      }
+
+      const outboxBootstrap = await db.getFirstAsync<{ value: string }>(
+        `SELECT last_sync_timestamp AS value
+         FROM sync_metadata
+         WHERE collection_name = '__outbox_schema_v1'`,
+      );
+      if (!outboxBootstrap) {
+        for (const collectionName of SYNC_COLLECTIONS) {
+          const table = TABLE_BY_COLLECTION[collectionName];
+          await db.execAsync(`
+            INSERT INTO sync_outbox (collection_name, sync_id, operation, changed_at)
+            SELECT '${collectionName}', sync_id, 'upsert', CURRENT_TIMESTAMP
+            FROM ${table}
+            WHERE sync_id IS NOT NULL
+            ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+              operation = 'upsert',
+              changed_at = excluded.changed_at;
+          `);
+        }
+        await db.runAsync(
+          `INSERT INTO sync_metadata (collection_name, last_sync_timestamp)
+           VALUES ('__outbox_schema_v1', '1')
+           ON CONFLICT(collection_name) DO UPDATE SET last_sync_timestamp = '1'`,
+        );
+      }
+
       await db.execAsync(`
         CREATE INDEX IF NOT EXISTS idx_weights_date ON weights(date DESC);
         CREATE INDEX IF NOT EXISTS idx_routines_order ON routines(sort_order, created_at DESC);
@@ -405,6 +674,10 @@ export const initDatabase = async () => {
         CREATE INDEX IF NOT EXISTS idx_cycles_start_date ON cycles(start_date DESC);
         CREATE INDEX IF NOT EXISTS idx_cycle_compounds_cycle_start ON cycle_compounds(cycle_id, start_date);
         CREATE INDEX IF NOT EXISTS idx_compounds_name ON compounds(name);
+        CREATE INDEX IF NOT EXISTS idx_sync_outbox_changed
+          ON sync_outbox(changed_at);
+        CREATE INDEX IF NOT EXISTS idx_sync_tombstones_deleted
+          ON sync_tombstones(deleted_at);
       `);
 
       console.log("Database initialized");
@@ -471,23 +744,6 @@ const execute = async (errorMessage: string, sql: string, ...params: any[]) => {
   }
 };
 
-const executeReturningId = async (
-  errorMessage: string,
-  sql: string,
-  ...params: any[]
-): Promise<number> => {
-  try {
-    return await queueDatabaseOperation(async () => {
-      const database = await requireDatabase();
-      const result = await database.runAsync(sql, ...params);
-      return result.lastInsertRowId;
-    });
-  } catch (error) {
-    console.error(errorMessage, error);
-    throw error;
-  }
-};
-
 const executeTransaction = async (
   errorMessage: string,
   fn: (database: SQLite.SQLiteDatabase) => Promise<void>,
@@ -543,16 +799,20 @@ export const getRoutines = async () => {
 
 export const addRoutine = async (name: string) => {
   try {
-    const database = await requireDatabase();
-    const result = await database.getFirstAsync<{ max_order: number }>(
-      "SELECT MAX(sort_order) as max_order FROM routines",
-    );
-    const nextOrder = (result?.max_order ?? 0) + 1;
-    await database.runAsync(
-      "INSERT INTO routines (name, sort_order) VALUES (?, ?)",
-      name,
-      nextOrder,
-    );
+    await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      await database.withExclusiveTransactionAsync(async transaction => {
+        const result = await transaction.getFirstAsync<{ max_order: number }>(
+          "SELECT MAX(sort_order) as max_order FROM routines",
+        );
+        const nextOrder = (result?.max_order ?? 0) + 1;
+        await transaction.runAsync(
+          "INSERT INTO routines (name, sort_order) VALUES (?, ?)",
+          name,
+          nextOrder,
+        );
+      });
+    });
   } catch (error) {
     console.error("Error adding routine:", error);
     throw error;
@@ -611,20 +871,24 @@ export const getWorkouts = async (routineId: number) => {
 
 export const addWorkout = async (routineId: number, name: string) => {
   try {
-    const database = await requireDatabase();
-    const date = new Date().toISOString();
-    const result = await database.getFirstAsync<{ max_order: number }>(
-      "SELECT MAX(sort_order) as max_order FROM workouts WHERE routine_id = ?",
-      routineId,
-    );
-    const nextOrder = (result?.max_order ?? 0) + 1;
-    await database.runAsync(
-      "INSERT INTO workouts (routine_id, name, date, sort_order) VALUES (?, ?, ?, ?)",
-      routineId,
-      name,
-      date,
-      nextOrder,
-    );
+    await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      await database.withExclusiveTransactionAsync(async transaction => {
+        const date = new Date().toISOString();
+        const result = await transaction.getFirstAsync<{ max_order: number }>(
+          "SELECT MAX(sort_order) as max_order FROM workouts WHERE routine_id = ?",
+          routineId,
+        );
+        const nextOrder = (result?.max_order ?? 0) + 1;
+        await transaction.runAsync(
+          "INSERT INTO workouts (routine_id, name, date, sort_order) VALUES (?, ?, ?, ?)",
+          routineId,
+          name,
+          date,
+          nextOrder,
+        );
+      });
+    });
   } catch (error) {
     console.error("Error adding workout:", error);
     throw error;
@@ -772,8 +1036,6 @@ export const updateExerciseLog = async (
 
 export const exportDatabase = async () => {
   if (Platform.OS === "web") return;
-  const database = await requireDatabase();
-  await database.execAsync("PRAGMA wal_checkpoint(TRUNCATE);");
 
   const cacheDir =
     FileSystem.Paths.cache?.uri ||
@@ -792,7 +1054,11 @@ export const exportDatabase = async () => {
     await FileSystemLegacy.deleteAsync(exportUri, { idempotent: true });
   }
 
-  await database.execAsync(`VACUUM INTO '${exportPath}'`);
+  await queueDatabaseOperation(async () => {
+    const database = await requireDatabase();
+    await database.execAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+    await database.execAsync(`VACUUM INTO '${exportPath}'`);
+  });
 
   try {
     if (Platform.OS === "android") {
@@ -850,12 +1116,6 @@ export const importDatabase = async () => {
 
   const { uri } = result.assets[0];
 
-  if (db) {
-    await db.closeAsync();
-    db = null;
-    initPromise = null;
-  }
-
   const docDir =
     FileSystem.Paths.document?.uri || FileSystemLegacy.documentDirectory;
   if (!docDir) {
@@ -870,12 +1130,19 @@ export const importDatabase = async () => {
     await FileSystemLegacy.makeDirectoryAsync(dbDir, { intermediates: true });
   }
 
-  await FileSystemLegacy.copyAsync({
-    from: uri,
-    to: dbPath,
-  });
+  await queueDatabaseOperation(async () => {
+    if (db) {
+      await db.closeAsync();
+      db = null;
+      initPromise = null;
+    }
 
-  await initDatabase();
+    await FileSystemLegacy.copyAsync({
+      from: uri,
+      to: dbPath,
+    });
+    await initDatabase();
+  });
 };
 
 export const getDiets = async () => {
@@ -892,16 +1159,20 @@ export const getDiets = async () => {
 
 export const addDiet = async (name: string) => {
   try {
-    const database = await requireDatabase();
-    const result = await database.getFirstAsync<{ max_order: number }>(
-      "SELECT MAX(sort_order) as max_order FROM diets",
-    );
-    const nextOrder = (result?.max_order ?? 0) + 1;
-    await database.runAsync(
-      "INSERT INTO diets (name, sort_order) VALUES (?, ?)",
-      name,
-      nextOrder,
-    );
+    await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      await database.withExclusiveTransactionAsync(async transaction => {
+        const result = await transaction.getFirstAsync<{ max_order: number }>(
+          "SELECT MAX(sort_order) as max_order FROM diets",
+        );
+        const nextOrder = (result?.max_order ?? 0) + 1;
+        await transaction.runAsync(
+          "INSERT INTO diets (name, sort_order) VALUES (?, ?)",
+          name,
+          nextOrder,
+        );
+      });
+    });
   } catch (error) {
     console.error("Error adding diet:", error);
     throw error;
@@ -964,13 +1235,54 @@ export const getDailyLogByDate = async (dietId: number, date: string) => {
 };
 
 export const addDailyLog = async (dietId: number, date: string) => {
-  return await executeReturningId(
-    "Error adding daily log:",
-    "INSERT INTO daily_logs (diet_id, date) VALUES (?, ?)",
-    dietId,
-    date,
-  );
+  try {
+    return await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      let dailyLogId: number | null = null;
+      await database.withExclusiveTransactionAsync(async transaction => {
+        const diet = await transaction.getFirstAsync<{ sync_id: string }>(
+          "SELECT sync_id FROM diets WHERE id = ?",
+          dietId,
+        );
+        if (!diet?.sync_id) throw new Error("Diet not found");
+
+        await transaction.runAsync(
+          `INSERT INTO daily_logs (sync_id, diet_id, date) VALUES (?, ?, ?)
+           ON CONFLICT(diet_id, date) DO NOTHING`,
+          getDailyLogSyncId(diet.sync_id, date),
+          dietId,
+          date,
+        );
+        const record = await transaction.getFirstAsync<{ id: number }>(
+          "SELECT id FROM daily_logs WHERE diet_id = ? AND date = ?",
+          dietId,
+          date,
+        );
+        dailyLogId = record?.id ?? null;
+      });
+      if (dailyLogId === null) throw new Error("Daily log could not be created");
+      return dailyLogId;
+    });
+  } catch (error) {
+    console.error("Error adding daily log:", error);
+    throw error;
+  }
 };
+
+const queryAllStrict = async <T>(sql: string, ...params: any[]): Promise<T[]> =>
+  await queueDatabaseOperation(async () => {
+    const database = await requireDatabase();
+    return await database.getAllAsync<T>(sql, ...params);
+  });
+
+const queryFirstStrict = async <T>(
+  sql: string,
+  ...params: any[]
+): Promise<T | null> =>
+  await queueDatabaseOperation(async () => {
+    const database = await requireDatabase();
+    return await database.getFirstAsync<T>(sql, ...params);
+  });
 
 export const deleteDailyLog = async (id: number) => {
   await execute(
@@ -1104,22 +1416,6 @@ export const deleteCycle = async (id: number) => {
   await execute("Error deleting cycle:", "DELETE FROM cycles WHERE id = ?", id);
 };
 
-export const updateCycle = async (
-  id: number,
-  name: string,
-  startDate: string,
-  endDate: string,
-) => {
-  await execute(
-    "Error updating cycle:",
-    "UPDATE cycles SET name = ?, start_date = ?, end_date = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?",
-    name,
-    startDate,
-    endDate,
-    id,
-  );
-};
-
 export const getCompounds = async () => {
   return await queryAll<{
     id: number;
@@ -1201,23 +1497,30 @@ export const deleteCycleCompound = async (id: number) => {
   );
 };
 
-export const updateCycleCompound = async (
-  id: number,
-  amount: number,
-  amountUnit: "mg" | "iu" | "mcg",
-  dosingPeriod: number,
-  startDate: string,
-  endDate: string,
-) => {
-  await execute(
-    "Error updating cycle compound:",
-    "UPDATE cycle_compounds SET amount = ?, amount_unit = ?, dosing_period = ?, start_date = ?, end_date = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?",
-    amount,
-    amountUnit,
-    dosingPeriod,
-    startDate,
-    endDate,
-    id,
+export const getDailyLogsWithStats = async (dietId: number) => {
+  return await queryAll<{
+    id: number;
+    sync_id: string;
+    diet_id: number;
+    date: string;
+    created_at: string;
+    total_calories: number;
+    total_protein: number;
+    total_carbs: number;
+    total_fats: number;
+  }>(
+    "Error getting daily logs with nutrition totals:",
+    `SELECT dl.*,
+            COALESCE(SUM(m.calories), 0) AS total_calories,
+            COALESCE(SUM(m.protein), 0) AS total_protein,
+            COALESCE(SUM(m.carbs), 0) AS total_carbs,
+            COALESCE(SUM(m.fats), 0) AS total_fats
+     FROM daily_logs dl
+     LEFT JOIN meals m ON m.daily_log_id = dl.id
+     WHERE dl.diet_id = ?
+     GROUP BY dl.id
+     ORDER BY dl.date DESC`,
+    dietId,
   );
 };
 
@@ -1226,16 +1529,37 @@ export const getAllDataForSync = async () => {
     const database = await requireDatabase();
     const weights = await database.getAllAsync<any>("SELECT * FROM weights");
     const routines = await database.getAllAsync<any>("SELECT * FROM routines");
-    const workouts = await database.getAllAsync<any>("SELECT * FROM workouts");
-    const exercises = await database.getAllAsync<any>("SELECT * FROM exercises");
-    const exerciseLogs = await database.getAllAsync<any>("SELECT * FROM exercise_logs");
+    const workouts = await database.getAllAsync<any>(`
+      SELECT w.*, r.sync_id AS routine_sync_id
+      FROM workouts w
+      JOIN routines r ON r.id = w.routine_id
+    `);
+    const exercises = await database.getAllAsync<any>(`
+      SELECT e.*, w.sync_id AS workout_sync_id
+      FROM exercises e
+      JOIN workouts w ON w.id = e.workout_id
+    `);
+    const exerciseLogs = await database.getAllAsync<any>(`
+      SELECT el.*, e.sync_id AS exercise_sync_id
+      FROM exercise_logs el
+      JOIN exercises e ON e.id = el.exercise_id
+    `);
     const diets = await database.getAllAsync<any>("SELECT * FROM diets");
-    const dailyLogs = await database.getAllAsync<any>("SELECT * FROM daily_logs");
-    const meals = await database.getAllAsync<any>("SELECT * FROM meals");
+    const dailyLogs = await database.getAllAsync<any>(`
+      SELECT dl.*, d.sync_id AS diet_sync_id
+      FROM daily_logs dl
+      JOIN diets d ON d.id = dl.diet_id
+    `);
+    const meals = await database.getAllAsync<any>(`
+      SELECT m.*, dl.sync_id AS daily_log_sync_id
+      FROM meals m
+      JOIN daily_logs dl ON dl.id = m.daily_log_id
+    `);
     const cycles = await database.getAllAsync<any>("SELECT * FROM cycles");
     const cycleCompounds = await database.getAllAsync<any>(`
-      SELECT cc.*, c.type, c.half_life_hours
+      SELECT cc.*, cy.sync_id AS cycle_sync_id, c.type, c.half_life_hours
       FROM cycle_compounds cc
+      JOIN cycles cy ON cy.id = cc.cycle_id
       JOIN compounds c ON c.id = cc.compound_id
     `);
 
@@ -1258,8 +1582,7 @@ export const getAllDataForSync = async () => {
 export const getLastSyncTimestamp = async (
   collectionName: string,
 ): Promise<string | null> => {
-  const result = await queryFirst<{ last_sync_timestamp: string }>(
-    "Error getting last sync timestamp:",
+  const result = await queryFirstStrict<{ last_sync_timestamp: string }>(
     "SELECT last_sync_timestamp FROM sync_metadata WHERE collection_name = ?",
     collectionName,
   );
@@ -1281,17 +1604,25 @@ export const setLastSyncTimestamp = async (
 };
 
 // APK metadata (local-only, not synced to Firestore)
-export const getApkVersionDate = async (): Promise<string | null> => {
-  const result = await queryFirst<{ version_date: string }>(
-    "Error getting APK version date:",
-    "SELECT version_date FROM apks ORDER BY id DESC LIMIT 1",
-  );
-  return result?.version_date ?? null;
+export type DownloadedApkMetadata = {
+  version_date: string;
+  file_name: string | null;
+  file_path: string | null;
 };
+
+export const getDownloadedApkMetadata = async (): Promise<DownloadedApkMetadata | null> =>
+  await queryFirst<DownloadedApkMetadata>(
+    "Error getting downloaded APK metadata:",
+    `SELECT version_date, file_name, file_path
+     FROM apks
+     ORDER BY id DESC
+     LIMIT 1`,
+  );
 
 export const setApkVersionDate = async (
   versionDate: string,
   fileName?: string,
+  filePath?: string,
 ) => {
   const existing = await queryFirst<{ id: number }>(
     "Error checking existing APK record:",
@@ -1301,18 +1632,20 @@ export const setApkVersionDate = async (
   if (existing) {
     await execute(
       "Error updating APK version date:",
-      "UPDATE apks SET version_date = ?, file_name = ?, downloaded_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      "UPDATE apks SET version_date = ?, file_name = ?, file_path = ?, downloaded_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
       versionDate,
       fileName ?? null,
+      filePath ?? null,
       new Date().toISOString(),
       existing.id,
     );
   } else {
     await execute(
       "Error inserting APK version date:",
-      "INSERT INTO apks (version_date, file_name, downloaded_at) VALUES (?, ?, ?)",
+      "INSERT INTO apks (version_date, file_name, file_path, downloaded_at) VALUES (?, ?, ?, ?)",
       versionDate,
       fileName ?? null,
+      filePath ?? null,
       new Date().toISOString(),
     );
   }
@@ -1321,29 +1654,106 @@ export const setApkVersionDate = async (
 export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   tableName: string,
   records: T[],
+  expectedOutboxEntries?: SyncOutboxEntry[],
 ) => {
-  if (records.length === 0) return;
+  if (records.length === 0) {
+    return { appliedSyncIds: [], skippedSyncIds: [] };
+  }
+
+  const collectionName = COLLECTION_BY_TABLE[tableName];
+  if (!collectionName) throw new Error(`Unsupported sync table: ${tableName}`);
+  const allowedColumns = new Set(LOCAL_COLUMNS_BY_COLLECTION[collectionName]);
+  const relationship = SYNC_RELATIONSHIPS[collectionName];
+  const expectedOutboxBySyncId = new Map(
+    expectedOutboxEntries?.map(entry => [entry.sync_id, entry]),
+  );
+  const appliedSyncIds: string[] = [];
+  const skippedSyncIds: string[] = [];
 
   await executeTransaction(
     `Error bulk inserting/updating ${tableName}:`,
     async (database) => {
+      const parentIdsBySyncId = new Map<string, number>();
+      if (relationship) {
+        const parentTable = TABLE_BY_COLLECTION[relationship.parentCollection];
+        const parents = await database.getAllAsync<{
+          id: number;
+          sync_id: string;
+        }>(`SELECT id, sync_id FROM ${parentTable}`);
+        parents.forEach(parent => parentIdsBySyncId.set(parent.sync_id, parent.id));
+      }
+
+      type LocalCompound = {
+        half_life_hours: number;
+        id: number;
+        name: string;
+        type: string;
+      };
+      const compoundsByName = new Map<string, LocalCompound[]>();
+      if (tableName === "cycle_compounds") {
+        const compounds = await database.getAllAsync<LocalCompound>(
+          "SELECT id, name, type, half_life_hours FROM compounds",
+        );
+        for (const compound of compounds) {
+          const matches = compoundsByName.get(compound.name) ?? [];
+          matches.push(compound);
+          compoundsByName.set(compound.name, matches);
+        }
+      }
+
       for (const record of records) {
         const normalizedRecord: Record<string, any> = { ...record };
-        if (tableName === "cycle_compounds" && typeof record.name === "string") {
-          const matchingCompounds = await database.getAllAsync<{
-            id: number;
-            type: string;
-            half_life_hours: number;
-          }>(
-            "SELECT id, type, half_life_hours FROM compounds WHERE name = ?",
-            record.name,
+        delete normalizedRecord.id;
+        delete normalizedRecord.server_modified_at;
+
+        if (typeof normalizedRecord.sync_id !== "string") {
+          throw new Error(`Missing sync ID for ${collectionName}`);
+        }
+
+        if (expectedOutboxEntries) {
+          const currentOutbox = await database.getFirstAsync<SyncOutboxEntry>(
+            `SELECT collection_name, sync_id, operation, changed_at
+             FROM sync_outbox
+             WHERE collection_name = ? AND sync_id = ?`,
+            collectionName,
+            normalizedRecord.sync_id,
           );
+          const expectedOutbox = expectedOutboxBySyncId.get(
+            normalizedRecord.sync_id,
+          );
+          const outboxChanged = currentOutbox?.operation !== expectedOutbox?.operation
+            || currentOutbox?.changed_at !== expectedOutbox?.changed_at;
+          if (outboxChanged) {
+            skippedSyncIds.push(normalizedRecord.sync_id);
+            continue;
+          }
+        }
+
+        if (relationship) {
+          const parentSyncId = normalizedRecord[relationship.remoteKey];
+          if (typeof parentSyncId !== "string") {
+            throw new Error(
+              `Missing ${relationship.remoteKey} for ${collectionName}`,
+            );
+          }
+          const parentId = parentIdsBySyncId.get(parentSyncId);
+          if (parentId === undefined) {
+            throw new Error(
+              `Missing parent ${relationship.parentCollection}/${parentSyncId}`,
+            );
+          }
+          normalizedRecord[relationship.localKey] = parentId;
+          delete normalizedRecord[relationship.remoteKey];
+        }
+
+        if (tableName === "cycle_compounds" && typeof record.name === "string") {
+          const matchingCompounds = compoundsByName.get(record.name) ?? [];
           const isValidType = ["injectable", "oral", "peptide"].includes(record.type);
           const halfLifeHours = Number(record.half_life_hours);
           const hasValidMetadata = isValidType
             && Number.isFinite(halfLifeHours)
             && halfLifeHours > 0;
-          let compound: { id: number } | undefined = hasValidMetadata
+          let compound: LocalCompound | undefined = hasValidMetadata
             ? matchingCompounds.find((candidate) => (
                 candidate.type === record.type
                 && Math.abs(candidate.half_life_hours - halfLifeHours) < 1e-9
@@ -1363,7 +1773,13 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
               record.type,
               halfLifeHours,
             );
-            compound = { id: Number(result.lastInsertRowId) };
+            compound = {
+              id: Number(result.lastInsertRowId),
+              name: record.name,
+              type: record.type,
+              half_life_hours: halfLifeHours,
+            };
+            compoundsByName.set(record.name, [...matchingCompounds, compound]);
           }
 
           normalizedRecord.compound_id = compound.id;
@@ -1371,26 +1787,138 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
           delete normalizedRecord.half_life_hours;
         }
 
-        const columns = Object.keys(normalizedRecord);
+        const columns = Object.keys(normalizedRecord).filter(column =>
+          allowedColumns.has(column),
+        );
         const values = columns.map((column) => normalizedRecord[column]);
         const placeholders = columns.map(() => "?").join(", ");
-        const updateColumns = columns.filter((column) => column !== "id");
+        const updateColumns = columns.filter((column) => column !== "sync_id");
         const conflictClause = updateColumns.length > 0
           ? `DO UPDATE SET ${updateColumns.map((column) => `${column} = excluded.${column}`).join(", ")}`
           : "DO NOTHING";
 
         await database.runAsync(
-          `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT(id) ${conflictClause}`,
+          `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT(sync_id) ${conflictClause}`,
           ...values,
+        );
+        await database.runAsync(
+          `DELETE FROM sync_outbox
+           WHERE collection_name = ? AND sync_id = ?`,
+          collectionName,
+          normalizedRecord.sync_id,
+        );
+        appliedSyncIds.push(normalizedRecord.sync_id);
+      }
+    },
+  );
+  return { appliedSyncIds, skippedSyncIds };
+};
+
+export const getSyncTombstones = async (): Promise<SyncTombstone[]> =>
+  await queryAllStrict<SyncTombstone>(
+    "SELECT collection_name, sync_id, deleted_at FROM sync_tombstones",
+  );
+
+export const upsertSyncTombstones = async (tombstones: SyncTombstone[]) => {
+  if (tombstones.length === 0) return;
+  await executeTransaction(
+    "Error upserting sync tombstones:",
+    async database => {
+      for (const tombstone of tombstones) {
+        await database.runAsync(
+          `INSERT INTO sync_tombstones (collection_name, sync_id, deleted_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+             deleted_at = CASE
+               WHEN excluded.deleted_at > sync_tombstones.deleted_at
+               THEN excluded.deleted_at
+               ELSE sync_tombstones.deleted_at
+             END`,
+          tombstone.collection_name,
+          tombstone.sync_id,
+          tombstone.deleted_at,
         );
       }
     },
   );
 };
 
-export const clearTable = async (tableName: string) => {
-  await execute(
-    `Error clearing table ${tableName}:`,
-    `DELETE FROM ${tableName}`,
+const DELETE_ORDER: readonly SyncCollectionName[] = [
+  "exercise_logs",
+  "exercises",
+  "workouts",
+  "meals",
+  "daily_logs",
+  "cycle_compounds",
+  "routines",
+  "diets",
+  "cycles",
+  "weights",
+];
+
+export const deleteRecordsBySyncIds = async (
+  tombstones: SyncTombstone[],
+) => {
+  if (tombstones.length === 0) return;
+  const syncIdsByCollection = new Map<SyncCollectionName, string[]>();
+  for (const tombstone of tombstones) {
+    const ids = syncIdsByCollection.get(tombstone.collection_name) ?? [];
+    ids.push(tombstone.sync_id);
+    syncIdsByCollection.set(tombstone.collection_name, ids);
+  }
+
+  await executeTransaction(
+    "Error applying synced deletions:",
+    async database => {
+      for (const collectionName of DELETE_ORDER) {
+        const syncIds = syncIdsByCollection.get(collectionName);
+        if (!syncIds?.length) continue;
+        const placeholders = syncIds.map(() => "?").join(", ");
+        await database.runAsync(
+          `DELETE FROM ${TABLE_BY_COLLECTION[collectionName]}
+           WHERE sync_id IN (${placeholders})`,
+          ...syncIds,
+        );
+      }
+    },
+  );
+};
+
+export const getSyncOutboxEntries = async (): Promise<SyncOutboxEntry[]> =>
+  await queryAllStrict<SyncOutboxEntry>(
+    `SELECT collection_name, sync_id, operation, changed_at
+     FROM sync_outbox
+     ORDER BY changed_at ASC`,
+  );
+
+export const clearSyncOutboxEntries = async (
+  entries: (Pick<SyncOutboxEntry, "collection_name" | "sync_id">
+    & Partial<Pick<SyncOutboxEntry, "operation" | "changed_at">>)[],
+) => {
+  if (entries.length === 0) return;
+  await executeTransaction(
+    "Error clearing sync outbox entries:",
+    async database => {
+      for (const entry of entries) {
+        if (entry.operation && entry.changed_at) {
+          await database.runAsync(
+            `DELETE FROM sync_outbox
+             WHERE collection_name = ? AND sync_id = ?
+               AND operation = ? AND changed_at = ?`,
+            entry.collection_name,
+            entry.sync_id,
+            entry.operation,
+            entry.changed_at,
+          );
+        } else {
+          await database.runAsync(
+            `DELETE FROM sync_outbox
+             WHERE collection_name = ? AND sync_id = ?`,
+            entry.collection_name,
+            entry.sync_id,
+          );
+        }
+      }
+    },
   );
 };

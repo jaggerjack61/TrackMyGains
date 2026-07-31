@@ -48,6 +48,7 @@
     },
     "extra": {
       "router": {},
+      "apkVersionDate": "20260731",
       "eas": {
         "projectId": "8b463f27-7a4e-43cd-aecf-720f304955d1"
       }

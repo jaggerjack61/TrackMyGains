@@ -3,7 +3,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addMeal, deleteMeal, getDailyLogByDate, getMeals, getRecentMeals, Meal, updateMeal } from '@/services/database';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { parseLocalDateKey } from '@/services/date-utils';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -75,7 +76,7 @@ export default function DailyLogScreen() {
   };
 
   const handleSaveMeal = async () => {
-    if (!name || !calories || !protein) {
+    if (!name.trim() || !calories || !protein) {
       Alert.alert('Error', 'Name, Calories and Protein are required');
       return;
     }
@@ -90,8 +91,17 @@ export default function DailyLogScreen() {
     const carbVal = parseFloat(carbs || '0');
     const fatVal = parseFloat(fats || '0');
 
-    if (isNaN(calVal) || isNaN(proVal)) {
-      Alert.alert('Error', 'Please enter valid numbers');
+    if (
+      !Number.isFinite(calVal)
+      || !Number.isFinite(proVal)
+      || !Number.isFinite(carbVal)
+      || !Number.isFinite(fatVal)
+      || calVal < 0
+      || proVal < 0
+      || carbVal < 0
+      || fatVal < 0
+    ) {
+      Alert.alert('Error', 'Nutrition values must be valid non-negative numbers');
       return;
     }
 
@@ -174,7 +184,7 @@ export default function DailyLogScreen() {
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title={date ? new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Daily Log'} />
+      <Header title={date ? parseLocalDateKey(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Daily Log'} />
 
       <FlatList
         ListHeaderComponent={

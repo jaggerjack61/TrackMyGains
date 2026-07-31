@@ -4,6 +4,7 @@ import { CycleCompound } from './database';
 
 const makeCompound = (overrides: Partial<CycleCompound> = {}): CycleCompound => ({
   id: 1,
+  sync_id: 'uuid:test-compound',
   cycle_id: 1,
   compound_id: 1,
   name: 'Testosterone',

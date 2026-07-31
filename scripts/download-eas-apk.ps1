@@ -11,7 +11,7 @@
 
 .PARAMETER OutputPath
     Full or relative path where the APK should be saved.
-    Defaults to .\TrackMyGains-preview.apk in the repo root.
+    Defaults to a dated filename using the version baked into app.json.
 
 .PARAMETER PollIntervalMinutes
     How often to check the build status. Default: 5.
@@ -27,23 +27,44 @@ param(
     [string]$BuildId,
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputPath = ".\TrackMyGains-preview-$(Get-Date -Format 'yyyyMMdd').apk",
+    [string]$OutputPath,
 
     [Parameter(Mandatory = $false)]
     [int]$PollIntervalMinutes = 5
 )
 
 $ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent $PSScriptRoot
+
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    $appJsonPath = Join-Path $repoRoot "app.json"
+    $appConfig = Get-Content -LiteralPath $appJsonPath -Raw | ConvertFrom-Json
+    $versionDate = $appConfig.expo.extra.apkVersionDate
+    if ($versionDate -notmatch '^\d{8}$') {
+        throw "app.json expo.extra.apkVersionDate must use YYYYMMDD format."
+    }
+    $OutputPath = ".\TrackMyGains-preview-$versionDate.apk"
+}
 
 function Get-EasBuildStatus($id) {
     try {
-        $tmpFile = Join-Path $PSScriptRoot ".eas-build-output.json"
-        & cmd /c "npx eas-cli build:view $id --json > `"$tmpFile`" 2>nul"
-        $text = ""
-        if (Test-Path $tmpFile) {
-            $text = [System.IO.File]::ReadAllText($tmpFile)
-            Remove-Item $tmpFile -ErrorAction SilentlyContinue
+        # EAS writes its progress spinner to stderr even when --json is used.
+        # With ErrorActionPreference=Stop, Windows PowerShell promotes that
+        # harmless output to a terminating NativeCommandError.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $output = & npx eas-cli build:view $id --json 2>$null
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
         }
+
+        if ($exitCode -ne 0) {
+            throw "eas-cli exited with code $exitCode."
+        }
+
+        $text = $output -join "`n"
         if ([string]::IsNullOrWhiteSpace($text)) {
             Write-Host "No output from eas-cli" -ForegroundColor Red
             return $null
@@ -68,7 +89,6 @@ function Invoke-ApkDownload($url, $destination) {
 
 # Resolve output path relative to script location if not absolute
 if (-not ([System.IO.Path]::IsPathRooted($OutputPath))) {
-    $repoRoot = Split-Path -Parent $PSScriptRoot
     $OutputPath = Join-Path $repoRoot $OutputPath
 }
 

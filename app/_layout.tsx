@@ -1,14 +1,10 @@
-import {
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
-import {
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold,
-} from "@expo-google-fonts/plus-jakarta-sans";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { DMSans_400Regular } from "@expo-google-fonts/dm-sans/400Regular";
+import { DMSans_500Medium } from "@expo-google-fonts/dm-sans/500Medium";
+import { DMSans_700Bold } from "@expo-google-fonts/dm-sans/700Bold";
+import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
+import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
+import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
     DarkTheme,
     DefaultTheme,
@@ -21,7 +17,6 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 
-import CustomSplashScreen from "@/components/SplashScreen";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
@@ -34,8 +29,6 @@ import { promptForUpdateIfAvailable } from "@/services/app-updates";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [isSplashAnimationFinished, setIsSplashAnimationFinished] =
-    useState(false);
   const [fontsLoaded] = useFonts({
     ...MaterialCommunityIcons.font,
     "DM Sans Regular": DMSans_400Regular,
@@ -58,7 +51,9 @@ export default function RootLayout() {
           "[App] User logged in, starting initial bidirectional sync...",
         );
         await bidirectionalSync({ force: true });
-        startFirestoreAutoSync();
+        if (auth.currentUser?.uid === user.uid) {
+          startFirestoreAutoSync();
+        }
       } else {
         stopFirestoreAutoSync();
       }
@@ -70,19 +65,15 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!isSplashAnimationFinished || !isAuthResolved) return;
+    if (!fontsLoaded || !isAuthResolved) return;
     void promptForUpdateIfAvailable();
-  }, [isSplashAnimationFinished, isAuthResolved]);
+  }, [fontsLoaded, isAuthResolved]);
 
   if (!fontsLoaded) {
     return null;
   }
 
-  if (!isSplashAnimationFinished || !isAuthResolved) {
-    return (
-      <CustomSplashScreen onFinish={() => setIsSplashAnimationFinished(true)} />
-    );
-  }
+  if (!isAuthResolved) return null;
 
   const themeName = colorScheme ?? "light";
   const baseTheme = themeName === "dark" ? DarkTheme : DefaultTheme;
@@ -113,10 +104,6 @@ export default function RootLayout() {
           <Stack.Screen name="track-workouts/[routineId]/index" options={{ headerShown: false }} />
           <Stack.Screen name="track-workouts/[routineId]/[workoutId]/index" options={{ headerShown: false }} />
           <Stack.Screen name="track-workouts/[routineId]/[workoutId]/[exerciseId]/index" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="modal"
-            options={{ presentation: "modal", title: "Modal" }}
-          />
         </Stack.Protected>
         <Stack.Protected guard={!hasUser}>
           <Stack.Screen name="auth/index" options={{ headerShown: false }} />

@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+.git/
 
 # Expo
 .expo/
@@ -46,3 +47,4 @@ app-example
 
 # local artifacts
 TrackMyGains.apk
+*.apk

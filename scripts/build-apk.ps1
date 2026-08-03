@@ -49,7 +49,7 @@ $appJsonPath = Join-Path $repoRoot "app.json"
 $updateAppConfigScript = @'
 const fs = require("node:fs");
 
-const [appJsonPath, versionDate] = process.argv.slice(1);
+const [appJsonPath, versionDate] = process.argv.slice(2);
 const rawConfig = fs.readFileSync(appJsonPath, "utf8").replace(/^\uFEFF/, "");
 const appConfig = JSON.parse(rawConfig);
 
@@ -58,12 +58,22 @@ appConfig.expo.extra.apkVersionDate = versionDate;
 fs.writeFileSync(appJsonPath, `${JSON.stringify(appConfig, null, 2)}\n`, "utf8");
 '@
 
-& node -e $updateAppConfigScript $appJsonPath $VersionDate
+# Write the JS to a temp file and run it, avoiding PowerShell 5.1 stripping quotes from node -e
+$tempJsPath = Join-Path $env:TEMP "update-app-config-$PID.cjs"
+try {
+    Set-Content -LiteralPath $tempJsPath -Value $updateAppConfigScript -Encoding UTF8
+    & node $tempJsPath $appJsonPath $VersionDate
+} finally {
+    Remove-Item -LiteralPath $tempJsPath -Force -ErrorAction SilentlyContinue
+}
 if ($LASTEXITCODE -ne 0) {
     throw "Could not update apkVersionDate in app.json."
 }
 
 Write-Host "Starting EAS build (profile: $Profile, platform: $Platform, version date: $VersionDate)..." -ForegroundColor Cyan
+
+# Allow Node's fetch (used by eas-cli) to honor HTTP(S)_PROXY env vars
+$env:NODE_OPTIONS = "$env:NODE_OPTIONS --use-env-proxy"
 
 # Run the build command and capture all output (stdout + stderr)
 $output = & npx eas-cli build --platform $Platform --profile $Profile --non-interactive --no-wait 2>&1

@@ -8,6 +8,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addExerciseLog, deleteExerciseLog, ExerciseLog, getExerciseLogs, updateExerciseLog } from '@/services/database';
+import { predictNextLog, PredictedLog } from '@/services/prediction';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -43,6 +44,8 @@ export default function ExerciseDetailScreen() {
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [predicted, setPredicted] = useState<{ weight?: boolean; sets?: boolean; reps?: boolean }>({});
+  const [prediction, setPrediction] = useState<PredictedLog | null>(null);
 
   // Graph State
   const [graphMetric, setGraphMetric] = useState<GraphMetric>('weight');
@@ -56,6 +59,7 @@ export default function ExerciseDetailScreen() {
     if (!exerciseId) return;
     const data = await getExerciseLogs(Number(exerciseId));
     setLogs(data);
+    setPrediction(predictNextLog(data));
   }, [exerciseId]);
 
   useEffect(() => {
@@ -130,16 +134,44 @@ export default function ExerciseDetailScreen() {
     setWeightUnit(log.weight_unit);
     setReps(log.reps.toString());
     setSets(log.sets.toString());
+    setPredicted({});
     setModalVisible(true);
   };
 
   const resetForm = () => {
     setEditingLog(null);
     setDate(new Date());
-    setWeight('');
-    setReps('');
-    setSets('');
-    // Keep last used unit or default to kg
+    if (prediction) {
+      setWeight(prediction.weight);
+      setWeightUnit(prediction.unit);
+      setSets(prediction.sets);
+      setReps(prediction.reps);
+      setPredicted({ weight: true, sets: true, reps: true });
+    } else {
+      setWeight('');
+      setSets('');
+      setReps('');
+      setPredicted({});
+    }
+  };
+
+  const clearIfPredicted = (field: 'weight' | 'sets' | 'reps') => {
+    if (!predicted[field]) return;
+    if (field === 'weight') setWeight('');
+    else if (field === 'sets') setSets('');
+    else setReps('');
+    setPredicted((p) => ({ ...p, [field]: false }));
+  };
+
+  const handleWeightUnitChange = (unit: 'kg' | 'lbs') => {
+    setWeightUnit(unit);
+    if (predicted.weight && weight !== '') {
+      const val = parseFloat(weight);
+      if (!isNaN(val)) {
+        const converted = unit === 'kg' ? val / 2.20462 : val * 2.20462;
+        setWeight((Math.round(converted * 10) / 10).toString());
+      }
+    }
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
@@ -341,8 +373,9 @@ export default function ExerciseDetailScreen() {
               <View style={{flex: 1, marginRight: 8}}>
                 <ThemedText>Weight:</ThemedText>
                 <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
+                  style={[styles.input, { color: predicted.weight ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
                   onChangeText={setWeight}
+                  onFocus={() => clearIfPredicted('weight')}
                   value={weight}
                   keyboardType="numeric"
                   placeholder="0"
@@ -354,13 +387,13 @@ export default function ExerciseDetailScreen() {
                 <View style={styles.unitToggle}>
                   <TouchableOpacity 
                     style={[styles.unitButton, weightUnit === 'kg' && { backgroundColor: tintColor }]}
-                    onPress={() => setWeightUnit('kg')}
+                    onPress={() => handleWeightUnitChange('kg')}
                   >
                     <ThemedText style={{color: weightUnit === 'kg' ? '#FFF' : textColor}}>kg</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.unitButton, weightUnit === 'lbs' && { backgroundColor: tintColor }]}
-                    onPress={() => setWeightUnit('lbs')}
+                    onPress={() => handleWeightUnitChange('lbs')}
                   >
                     <ThemedText style={{color: weightUnit === 'lbs' ? '#FFF' : textColor}}>lbs</ThemedText>
                   </TouchableOpacity>
@@ -372,8 +405,9 @@ export default function ExerciseDetailScreen() {
               <View style={{flex: 1, marginRight: 8}}>
                 <ThemedText>Sets:</ThemedText>
                 <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
+                  style={[styles.input, { color: predicted.sets ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
                   onChangeText={setSets}
+                  onFocus={() => clearIfPredicted('sets')}
                   value={sets}
                   keyboardType="numeric"
                   placeholder="0"
@@ -383,8 +417,9 @@ export default function ExerciseDetailScreen() {
               <View style={{flex: 1}}>
                 <ThemedText>Reps:</ThemedText>
                 <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
+                  style={[styles.input, { color: predicted.reps ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
                   onChangeText={setReps}
+                  onFocus={() => clearIfPredicted('reps')}
                   value={reps}
                   keyboardType="numeric"
                   placeholder="0"

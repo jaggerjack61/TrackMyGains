@@ -16,6 +16,12 @@ export type CollectionReconciliation = {
   conflicts: number;
   pull: SyncRecord[];
   push: SyncRecord[];
+  /**
+   * Local versions that lost an equal-or-newer remote conflict. The remote
+   * record is applied on top of them, so callers should preserve these
+   * before applying the pull to avoid silently discarding the edit.
+   */
+  conflictLosers: SyncRecord[];
 };
 
 export type RemoteDietDayDeduplication = {
@@ -154,6 +160,7 @@ export const reconcileCollection = (
   );
   const push: SyncRecord[] = [];
   const pull: SyncRecord[] = [];
+  const conflictLosers: SyncRecord[] = [];
   let conflicts = 0;
 
   for (const remoteRecord of remoteChanges) {
@@ -181,6 +188,7 @@ export const reconcileCollection = (
     if (recordsDiffer(collectionName, localRecord, remoteRecord)) {
       conflicts += 1;
       pull.push(remoteRecord);
+      conflictLosers.push(localRecord);
     }
   }
 
@@ -190,5 +198,5 @@ export const reconcileCollection = (
     if (localRecord) push.push(localRecord);
   }
 
-  return { conflicts, pull, push };
+  return { conflicts, pull, push, conflictLosers };
 };

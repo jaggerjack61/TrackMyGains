@@ -10,7 +10,9 @@ import {
   SYNC_COLLECTIONS,
   SYNC_RELATIONSHIPS,
   getDailyLogSyncId,
+  isSyncCollectionName,
   type SyncCollectionName,
+  type SyncConflictRecord,
   type SyncOutboxEntry,
   type SyncTombstone,
 } from "@/services/sync-records";
@@ -247,6 +249,13 @@ export const initDatabase = async () => {
           sync_id TEXT NOT NULL,
           operation TEXT NOT NULL CHECK(operation IN ('upsert', 'delete')),
           changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (collection_name, sync_id)
+        );
+        CREATE TABLE IF NOT EXISTS sync_conflicts (
+          collection_name TEXT NOT NULL,
+          sync_id TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          lost_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (collection_name, sync_id)
         );
         CREATE TABLE IF NOT EXISTS apks (
@@ -1655,6 +1664,7 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   tableName: string,
   records: T[],
   expectedOutboxEntries?: SyncOutboxEntry[],
+  conflictLosers?: T[],
 ) => {
   if (records.length === 0) {
     return { appliedSyncIds: [], skippedSyncIds: [] };
@@ -1666,6 +1676,9 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   const relationship = SYNC_RELATIONSHIPS[collectionName];
   const expectedOutboxBySyncId = new Map(
     expectedOutboxEntries?.map(entry => [entry.sync_id, entry]),
+  );
+  const conflictLosersBySyncId = new Map(
+    conflictLosers?.map(record => [String(record.sync_id), record]) ?? [],
   );
   const appliedSyncIds: string[] = [];
   const skippedSyncIds: string[] = [];
@@ -1801,6 +1814,24 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
           `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT(sync_id) ${conflictClause}`,
           ...values,
         );
+        const losingRecord = conflictLosersBySyncId.get(
+          normalizedRecord.sync_id,
+        );
+        if (losingRecord) {
+          // The pull overwrites a pending local edit (deterministic LWW).
+          // Preserve the losing version before it is gone for good.
+          await database.runAsync(
+            `INSERT INTO sync_conflicts (collection_name, sync_id, payload, lost_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+               payload = excluded.payload,
+               lost_at = excluded.lost_at`,
+            collectionName,
+            normalizedRecord.sync_id,
+            JSON.stringify(losingRecord),
+            new Date().toISOString(),
+          );
+        }
         await database.runAsync(
           `DELETE FROM sync_outbox
            WHERE collection_name = ? AND sync_id = ?`,
@@ -1920,5 +1951,101 @@ export const clearSyncOutboxEntries = async (
         }
       }
     },
+  );
+};
+
+export const saveSyncConflicts = async (
+  conflicts: { collection_name: string; sync_id: string; payload: string }[],
+) => {
+  if (conflicts.length === 0) return;
+  await executeTransaction(
+    "Error saving sync conflicts:",
+    async database => {
+      for (const conflict of conflicts) {
+        await database.runAsync(
+          `INSERT INTO sync_conflicts (collection_name, sync_id, payload, lost_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(collection_name, sync_id) DO UPDATE SET
+             payload = excluded.payload,
+             lost_at = excluded.lost_at`,
+          conflict.collection_name,
+          conflict.sync_id,
+          conflict.payload,
+          new Date().toISOString(),
+        );
+      }
+    },
+  );
+};
+
+export const getSyncConflicts = async (): Promise<SyncConflictRecord[]> =>
+  await queryAllStrict<SyncConflictRecord>(
+    "SELECT collection_name, sync_id, payload, lost_at FROM sync_conflicts",
+  );
+
+export const restoreSyncConflict = async (
+  conflict: { collection_name: string; sync_id: string; payload: string },
+): Promise<boolean> => {
+  if (!isSyncCollectionName(conflict.collection_name)) return false;
+  const tableName = TABLE_BY_COLLECTION[conflict.collection_name];
+  const allowedColumns = LOCAL_COLUMNS_BY_COLLECTION[conflict.collection_name];
+  try {
+    return await queueDatabaseOperation(async () => {
+      const database = await requireDatabase();
+      const parsed = JSON.parse(conflict.payload) as Record<string, unknown>;
+      const columns = allowedColumns.filter(
+        column => column !== "sync_id"
+          && column !== "last_modified"
+          && parsed[column] !== undefined,
+      );
+      const now = new Date().toISOString();
+      columns.push("last_modified");
+      const values: SQLite.SQLiteBindValue[] = columns.map(column =>
+        column === "last_modified" ? now : parsed[column] as SQLite.SQLiteBindValue,
+      );
+      const placeholders = columns.map(() => "?").join(", ");
+      const updateSet = columns
+        .map(column => `${column} = excluded.${column}`)
+        .join(", ");
+
+      // The sync triggers queue the upsert outbox entry on insert/update.
+      await database.runAsync(
+        `INSERT INTO ${tableName} (sync_id, ${columns.join(", ")})
+         VALUES (?, ${placeholders})
+         ON CONFLICT(sync_id) DO UPDATE SET ${updateSet}`,
+        conflict.sync_id,
+        ...values,
+      );
+      // If the record was deleted locally since the conflict was recorded,
+      // drop its tombstone/delete markers so the restored edit survives sync.
+      await database.runAsync(
+        "DELETE FROM sync_tombstones WHERE collection_name = ? AND sync_id = ?",
+        conflict.collection_name,
+        conflict.sync_id,
+      );
+      await database.runAsync(
+        "DELETE FROM sync_conflicts WHERE collection_name = ? AND sync_id = ?",
+        conflict.collection_name,
+        conflict.sync_id,
+      );
+      return true;
+    });
+  } catch (error) {
+    // e.g. parent record was deleted by sync, so the FK constraint rejects
+    // the restore. Keep the conflict record so the user can retry or dismiss.
+    console.error("Error restoring sync conflict:", error);
+    return false;
+  }
+};
+
+export const deleteSyncConflict = async (
+  collectionName: string,
+  syncId: string,
+): Promise<void> => {
+  await execute(
+    "Error deleting sync conflict:",
+    "DELETE FROM sync_conflicts WHERE collection_name = ? AND sync_id = ?",
+    collectionName,
+    syncId,
   );
 };

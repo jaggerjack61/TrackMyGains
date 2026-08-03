@@ -49,3 +49,21 @@
 - The updater compares remote APKs with the installed build date and can reinstall an already-downloaded pending update without downloading it again.
 - Expo dependencies are aligned, AsyncStorage uses the supported SDK version, and transitive security patches leave `npm audit` at zero findings.
 - Font and icon imports use direct subpaths, reducing the Android export from 75 bundled assets to 32.
+
+## 2026-08-03 Audit Findings (investigation only, no fixes applied)
+- Data loss risk: on sync conflict, remote wins when its client timestamp is >= local (equal-time tie-break is deliberate, codified in sync-reconciliation.test.ts); pull overwrites the pending outbox edit and deletes its outbox row; no backup of the losing edit, winner decided by device clock (CURRENT_TIMESTAMP).
+- Stale screens: mount-only load (no catch) on track-weight, all track-workouts/*, track-diet/index list, and meal-day route; only track-diet/[dietId] history + track-cycle use useFocusEffect. No sync-completion event exists (firebase.ts emits none), so even useFocusEffect screens stay stale while focused. initDatabase self-resets (db=null, initPromise=null) so failures retry on remount, not permanent.
+- Critical modules firebase.ts/database.native.ts have only source-text tests (*-source.test.ts readFileSync + not.toContain), no behavioral coverage.
+- Minor: APK updater lacks status/size/hash verification; UTC-instant vs local-date-key mixing; unthrottled LIKE query on meal name input; hardcoded colors bypass theme; expo-linking/expo-system-ui unused direct deps; builds.json orphaned.
+
+## 2026-08-03 Conflict & Staleness Fix Pass
+- Sync conflicts now preserve the losing local edit: `reconcileCollection` returns `conflictLosers`, and `bulkInsertOrUpdate` (native + web) writes them to a new local-only `sync_conflicts` table before the remote pull overwrites them. Deterministic LWW tie-break unchanged.
+- Added `services/sync-events.ts` — `bidirectionalSync` notifies subscribers on success; new `useSyncRefresh` hook reloads screen data on focus AND on sync completion (with unhandled-rejection guard).
+- All 10 list/detail screens (track-weight, track-workouts/*, track-diet/*, track-cycle/*) now use `useSyncRefresh` instead of mount-only `useEffect` or bare `useFocusEffect`.
+- New behavioral tests: conflictLosers reporting in sync-reconciliation.test.ts; loser preservation via bulkInsertOrUpdate in database.web.test.ts. 109 tests pass; lint + tsc clean.
+
+## 2026-08-03 Sync Conflicts UI Pass
+- Settings now shows a "Sync Conflicts" section when conflicts exist (count badge, collection label, lost-at time, sync id, payload summary). Each conflict offers Restore (brings back the losing edit, bumps last_modified so it wins the next sync, re-queues outbox via sync triggers/saveArray, clears stale tombstone/delete markers) and Dismiss (removes the preserved copy only).
+- New DB APIs: `restoreSyncConflict` (native + web, returns false on FK failure e.g. deleted parent) and `deleteSyncConflict`; both declared in database.d.ts.
+- Settings uses `useSyncRefresh` so the list appears/updates after any sync completes.
+- New web tests: restore re-queues upsert + bumps timestamp; dismiss leaves the winning record untouched. 111 tests pass; lint + tsc clean.

@@ -1,6 +1,5 @@
 import { Header } from '@/components/Header';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -30,6 +29,7 @@ import {
 } from '@/services/cycle-chart';
 import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 
 type PinchState = {
   startDistance: number;
@@ -62,11 +62,7 @@ export default function CycleDetailScreen() {
     }
   }, [cycleId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadData();
-    }, [loadData])
-  );
+  useSyncRefresh(loadData);
 
   const chartSeries = useMemo(() => {
     if (!cycle || compounds.length === 0) return null;

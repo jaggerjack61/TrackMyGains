@@ -4,9 +4,10 @@ import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addMeal, deleteMeal, getDailyLogByDate, getMeals, getRecentMeals, Meal, updateMeal } from '@/services/database';
 import { parseLocalDateKey } from '@/services/date-utils';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -50,9 +51,7 @@ export default function DailyLogScreen() {
     }
   }, [dietId, date]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useSyncRefresh(loadData);
 
   const handleNameChange = async (text: string) => {
     setName(text);

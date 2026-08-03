@@ -1,4 +1,5 @@
 import type {
+  SyncConflictRecord,
   SyncOutboxEntry,
   SyncTombstone,
 } from './sync-records';
@@ -270,6 +271,7 @@ export declare const bulkInsertOrUpdate: <T extends Record<string, any>>(
   tableName: string,
   records: T[],
   expectedOutboxEntries?: SyncOutboxEntry[],
+  conflictLosers?: T[],
 ) => Promise<{ appliedSyncIds: string[]; skippedSyncIds: string[] }>;
 export declare const getSyncTombstones: () => Promise<SyncTombstone[]>;
 export declare const upsertSyncTombstones: (
@@ -282,6 +284,18 @@ export declare const getSyncOutboxEntries: () => Promise<SyncOutboxEntry[]>;
 export declare const clearSyncOutboxEntries: (
   entries: (Pick<SyncOutboxEntry, 'collection_name' | 'sync_id'>
     & Partial<Pick<SyncOutboxEntry, 'operation' | 'changed_at'>>)[],
+) => Promise<void>;
+// Conflict preservation (local-only, not synced to Firestore)
+export declare const saveSyncConflicts: (
+  conflicts: { collection_name: string; sync_id: string; payload: string }[],
+) => Promise<void>;
+export declare const getSyncConflicts: () => Promise<SyncConflictRecord[]>;
+export declare const restoreSyncConflict: (
+  conflict: { collection_name: string; sync_id: string; payload: string },
+) => Promise<boolean>;
+export declare const deleteSyncConflict: (
+  collectionName: string,
+  syncId: string,
 ) => Promise<void>;
 
 // APK metadata (local-only, not synced to Firestore)

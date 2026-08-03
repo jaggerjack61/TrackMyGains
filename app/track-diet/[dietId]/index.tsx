@@ -9,9 +9,9 @@ import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis'
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addDailyLog, DailyLogWithStats, deleteDailyLog, getDailyLogsWithStats } from '@/services/database';
 import { formatLocalDateKey, parseLocalDateKey } from '@/services/date-utils';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -60,11 +60,7 @@ export default function DietDetailScreen() {
     setDailyLogs(logsWithStats);
   }, [dietId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadData();
-    }, [loadData]),
-  );
+  useSyncRefresh(loadData);
 
   const handleAddDay = () => {
     setShowDatePicker(true);

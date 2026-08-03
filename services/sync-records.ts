@@ -31,6 +31,18 @@ export type SyncOutboxEntry = {
   changed_at: string;
 };
 
+/**
+ * A local record version that lost an equal-or-newer remote sync conflict.
+ * The payload preserves the losing edit (JSON of the sync-shaped record)
+ * so it can be recovered or surfaced to the user instead of being lost.
+ */
+export type SyncConflictRecord = {
+  collection_name: SyncCollectionName;
+  sync_id: string;
+  payload: string;
+  lost_at: string;
+};
+
 type RelationshipDefinition = {
   localKey: string;
   parentCollection: SyncCollectionName;

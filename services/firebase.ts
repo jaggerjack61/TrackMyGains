@@ -58,6 +58,7 @@ import {
   type SyncRecord,
   type SyncTombstone,
 } from '@/services/sync-records';
+import { notifySyncCompletion } from '@/services/sync-events';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDYCxW82L-nzn0hJP9vKbO8xf13LL1g0-0',
@@ -513,6 +514,7 @@ export const bidirectionalSync = async (options?: {
         collectionName,
         reconciliation.pull,
         collectionOutboxEntries,
+        reconciliation.conflictLosers,
       );
       await clearSyncOutboxEntries(pendingEntries);
       stats.conflicts += reconciliation.conflicts;
@@ -537,6 +539,7 @@ export const bidirectionalSync = async (options?: {
     await clearSyncOutboxEntries(deletionEntries);
     permissionDeniedAt = 0;
     lastSyncAt = Date.now();
+    notifySyncCompletion('success');
     return { status: 'success', stats };
   } catch (error) {
     console.error('[Bidirectional Sync] Sync failed:', error);

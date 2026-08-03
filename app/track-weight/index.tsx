@@ -8,10 +8,11 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -48,15 +49,13 @@ export default function TrackWeightScreen() {
   const borderColor = useThemeColor({}, 'border');
   const mutedTextColor = useThemeColor({}, 'mutedText');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     await initDatabase();
     const data = await getWeights();
     setWeights(data);
-  };
+  }, []);
+
+  useSyncRefresh(loadData);
 
   const handleAddWeight = async () => {
     if (!newWeight) {

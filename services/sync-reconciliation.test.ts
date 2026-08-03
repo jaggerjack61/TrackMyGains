@@ -57,6 +57,42 @@ describe('reconcileCollection', () => {
     expect(result.conflicts).toBe(1);
     expect(result.pull[0]).toMatchObject({ weight: 91 });
   });
+
+  it('exposes the losing local version as a conflict loser for preservation', () => {
+    const result = reconcileCollection(
+      'weights',
+      [weight('uuid:same', 90)],
+      [weight('uuid:same', 91)],
+      new Set(['uuid:same']),
+      new Set(),
+    );
+
+    expect(result.conflictLosers).toHaveLength(1);
+    expect(result.conflictLosers[0]).toMatchObject({
+      sync_id: 'uuid:same',
+      weight: 90,
+    });
+  });
+
+  it('does not report conflict losers for fresh pulls or local wins', () => {
+    const pulled = reconcileCollection(
+      'weights',
+      [],
+      [weight('uuid:remote-only', 91)],
+      new Set(),
+      new Set(),
+    );
+    const won = reconcileCollection(
+      'weights',
+      [weight('uuid:local-wins', 92, '2026-08-01T10:00:00.000Z')],
+      [weight('uuid:local-wins', 91, '2026-07-31T10:00:00.000Z')],
+      new Set(['uuid:local-wins']),
+      new Set(),
+    );
+
+    expect(pulled.conflictLosers).toEqual([]);
+    expect(won.conflictLosers).toEqual([]);
+  });
 });
 
 describe('mergeTombstones', () => {

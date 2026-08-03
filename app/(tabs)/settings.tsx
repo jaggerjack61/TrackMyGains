@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,12 +11,53 @@ import { SoftButton } from "@/components/ui/soft-ui";
 import { Colors, withAlpha } from "@/constants/theme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useProfileMenuActions } from "@/hooks/use-profile-menu-actions";
-import { exportDatabase, importDatabase } from "@/services/database";
+import { useSyncRefresh } from "@/hooks/use-sync-refresh";
+import {
+  deleteSyncConflict,
+  exportDatabase,
+  getSyncConflicts,
+  importDatabase,
+  restoreSyncConflict,
+} from "@/services/database";
+import type { SyncConflictRecord } from "@/services/sync-records";
+
+const COLLECTION_LABELS: Record<string, string> = {
+  weights: "Weights",
+  routines: "Routines",
+  workouts: "Workouts",
+  exercises: "Exercises",
+  exercise_logs: "Exercise Logs",
+  diets: "Diets",
+  daily_logs: "Daily Logs",
+  meals: "Meals",
+  cycles: "Cycles",
+  cycle_compounds: "Cycle Compounds",
+};
+
+const formatConflictTime = (lostAt: string) => {
+  const date = new Date(lostAt);
+  return Number.isNaN(date.getTime())
+    ? lostAt
+    : date.toLocaleString();
+};
+
+const summarizePayload = (payload: string): string => {
+  try {
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    const meaningful = Object.entries(parsed).filter(([key]) =>
+      !["id", "sync_id", "created_at", "last_modified"].includes(key),
+    );
+    return meaningful.map(([key, value]) => `${key}: ${String(value)}`).join(" · ");
+  } catch {
+    return payload.slice(0, 120);
+  }
+};
 
 export default function SettingsScreen() {
   const mutedTextColor = useThemeColor({}, "mutedText");
   const tintColor = useThemeColor({}, "tint");
   const insets = useSafeAreaInsets();
+  const [conflicts, setConflicts] = useState<SyncConflictRecord[]>([]);
   const {
     closeProfile,
     handleCheckUpdates,
@@ -26,6 +67,56 @@ export default function SettingsScreen() {
     openProfile,
     userEmail,
   } = useProfileMenuActions();
+
+  const loadConflicts = useCallback(async () => {
+    const data = await getSyncConflicts();
+    setConflicts(data);
+  }, []);
+
+  useSyncRefresh(loadConflicts);
+
+  const handleRestoreConflict = (conflict: SyncConflictRecord) => {
+    Alert.alert(
+      "Restore this edit?",
+      "Your version will replace the synced copy and be pushed on the next sync. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          style: "destructive",
+          onPress: async () => {
+            const restored = await restoreSyncConflict(conflict);
+            await loadConflicts();
+            Alert.alert(
+              restored ? "Restored" : "Could not restore",
+              restored
+                ? "Your edit will be synced on the next sync."
+                : "This record could not be restored, likely because a parent record was deleted. You can dismiss it instead.",
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDismissConflict = (conflict: SyncConflictRecord) => {
+    Alert.alert(
+      "Discard this edit?",
+      "The losing edit will be permanently removed. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: async () => {
+            await deleteSyncConflict(conflict.collection_name, conflict.sync_id);
+            await loadConflicts();
+          },
+        },
+      ],
+    );
+  };
+
 
   const handleExport = async () => {
     try {
@@ -147,6 +238,77 @@ export default function SettingsScreen() {
             </View>
           </SoftButton>
         </View>
+
+        {conflicts.length > 0 && (
+          <>
+            <ThemedView style={styles.titleContainer}>
+              <ThemedText type="subtitle">Sync Conflicts</ThemedText>
+              <View style={styles.badge}>
+                <ThemedText style={styles.badgeText}>
+                  {conflicts.length}
+                </ThemedText>
+              </View>
+            </ThemedView>
+            <ThemedText style={[styles.intro, { color: mutedTextColor }]}>
+              Edits that lost a sync conflict were saved here instead of being
+              discarded. Restore yours, or dismiss it.
+            </ThemedText>
+
+            {conflicts.map((conflict) => (
+              <View key={`${conflict.collection_name}:${conflict.sync_id}`} style={styles.conflictCard}>
+                <View style={styles.conflictHeader}>
+                  <MaterialCommunityIcons
+                    name="alert-circle-outline"
+                    size={20}
+                    color="#EF4444"
+                  />
+                  <ThemedText type="defaultSemiBold">
+                    {COLLECTION_LABELS[conflict.collection_name] ?? conflict.collection_name}
+                  </ThemedText>
+                  <ThemedText style={[styles.conflictTime, { color: mutedTextColor }]}>
+                    {formatConflictTime(conflict.lost_at)}
+                  </ThemedText>
+                </View>
+                <ThemedText style={[styles.conflictId, { color: mutedTextColor }]} numberOfLines={1}>
+                  {conflict.sync_id}
+                </ThemedText>
+                <ThemedText style={styles.conflictPreview} numberOfLines={2}>
+                  {summarizePayload(conflict.payload)}
+                </ThemedText>
+                <View style={styles.conflictActions}>
+                  <SoftButton
+                    style={styles.conflictButton}
+                    contentStyle={styles.conflictButtonContent}
+                    onPress={() => handleRestoreConflict(conflict)}
+                  >
+                    <MaterialCommunityIcons
+                      name="restore"
+                      size={16}
+                      color={tintColor}
+                    />
+                    <ThemedText type="defaultSemiBold" style={styles.conflictButtonText}>
+                      Restore
+                    </ThemedText>
+                  </SoftButton>
+                  <SoftButton
+                    style={[styles.conflictButton, { marginLeft: 10 }]}
+                    contentStyle={styles.conflictButtonContent}
+                    onPress={() => handleDismissConflict(conflict)}
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={16}
+                      color="#EF4444"
+                    />
+                    <ThemedText type="defaultSemiBold" style={[styles.conflictButtonText, { color: "#EF4444" }]}>
+                      Dismiss
+                    </ThemedText>
+                  </SoftButton>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
       </ParallaxScrollView>
       <ProfileMenu
         isOpen={isProfileOpen}
@@ -213,5 +375,60 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 16,
+  },
+  badge: {
+    backgroundColor: withAlpha("#EF4444", 0.15),
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+  },
+  badgeText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  conflictCard: {
+    backgroundColor: withAlpha("#EF4444", 0.06),
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: withAlpha("#EF4444", 0.2),
+    padding: 14,
+    marginBottom: 12,
+  },
+  conflictHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  conflictTime: {
+    marginLeft: "auto",
+    fontSize: 12,
+  },
+  conflictId: {
+    fontSize: 12,
+    marginTop: 6,
+  },
+  conflictPreview: {
+    fontSize: 13,
+    marginTop: 6,
+  },
+  conflictActions: {
+    flexDirection: "row",
+    marginTop: 12,
+  },
+  conflictButton: {
+    flex: 1,
+  },
+  conflictButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  conflictButtonText: {
+    fontSize: 13,
   },
 });

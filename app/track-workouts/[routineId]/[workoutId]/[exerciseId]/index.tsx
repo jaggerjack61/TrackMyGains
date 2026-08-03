@@ -9,10 +9,11 @@ import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis'
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addExerciseLog, deleteExerciseLog, ExerciseLog, getExerciseLogs, updateExerciseLog } from '@/services/database';
 import { predictNextLog, PredictedLog } from '@/services/prediction';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -62,9 +63,7 @@ export default function ExerciseDetailScreen() {
     setPrediction(predictNextLog(data));
   }, [exerciseId]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useSyncRefresh(loadData);
 
   const handleSaveLog = async () => {
     if (!weight || !reps || !sets) {

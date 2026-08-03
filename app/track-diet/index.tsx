@@ -4,9 +4,10 @@ import { ThemedView } from '@/components/themed-view';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addDiet, deleteDiet, Diet, getDiets, initDatabase, updateDiet, updateDietOrder } from '@/services/database';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -29,15 +30,13 @@ export default function TrackDietScreen() {
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     await initDatabase();
     const data = await getDiets();
     setDiets(data);
-  };
+  }, []);
+
+  useSyncRefresh(loadData);
 
   const handleSaveDiet = async () => {
     if (!newDietName.trim()) {

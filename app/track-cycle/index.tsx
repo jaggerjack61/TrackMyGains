@@ -1,6 +1,5 @@
 import { Header } from '@/components/Header';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -8,6 +7,7 @@ import { FlatList, Pressable, StyleSheet, TouchableOpacity, View } from 'react-n
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import { Cycle, deleteCycle, getCycles } from '@/services/database';
 
 export default function TrackCycleScreen() {
@@ -21,11 +21,7 @@ export default function TrackCycleScreen() {
     setCycles(data);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadCycles();
-    }, [loadCycles])
-  );
+  useSyncRefresh(loadCycles);
 
   const handleDelete = async (id: number) => {
     await deleteCycle(id);

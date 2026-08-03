@@ -14,16 +14,19 @@ import {
   bulkInsertOrUpdate,
   clearSyncOutboxEntries,
   deleteRoutine,
+  deleteSyncConflict,
   deleteWeight,
   getAllDataForSync,
   getCompounds,
   getDailyLogsWithStats,
   getDailyLogs,
   getMeals,
+  getSyncConflicts,
   getSyncOutboxEntries,
   getSyncTombstones,
   getWeights,
   initDatabase,
+  restoreSyncConflict,
 } from './database.web';
 
 class LocalStorageMock {
@@ -230,6 +233,111 @@ describe('database.web', () => {
       sync_id: weight.sync_id,
       operation: 'delete',
     }));
+  });
+
+  it('preserves the losing local edit when a conflict pull overwrites it', async () => {
+    await addWeight(90, '2026-05-12T10:00:00.000Z');
+    const local = (await getAllDataForSync()).weights[0];
+    const pendingUpsert = (await getSyncOutboxEntries()).find(entry =>
+      entry.collection_name === 'weights' && entry.sync_id === local.sync_id,
+    );
+    expect(pendingUpsert).toBeDefined();
+
+    const remote = {
+      sync_id: local.sync_id,
+      weight: 91,
+      date: '2026-05-13T10:00:00.000Z',
+      last_modified: '2026-05-13T10:00:00.000Z',
+    };
+    const result = await bulkInsertOrUpdate(
+      'weights',
+      [remote],
+      [pendingUpsert!],
+      [local],
+    );
+
+    expect(result.appliedSyncIds).toEqual([local.sync_id]);
+    const updated = await getWeights();
+    expect(updated[0].weight).toBe(91);
+
+    const conflicts = await getSyncConflicts();
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({
+      collection_name: 'weights',
+      sync_id: local.sync_id,
+    });
+    const preserved = JSON.parse(conflicts[0].payload);
+    expect(preserved.weight).toBe(90);
+    expect(preserved.sync_id).toBe(local.sync_id);
+  });
+
+  it('restores a preserved conflict edit and re-queues it for sync', async () => {
+    await addWeight(90, '2026-05-12T10:00:00.000Z');
+    const local = (await getAllDataForSync()).weights[0];
+    const pendingUpsert = (await getSyncOutboxEntries()).find(entry =>
+      entry.collection_name === 'weights' && entry.sync_id === local.sync_id,
+    );
+    expect(pendingUpsert).toBeDefined();
+
+    await bulkInsertOrUpdate(
+      'weights',
+      [{
+        sync_id: local.sync_id,
+        weight: 91,
+        date: '2026-05-13T10:00:00.000Z',
+        last_modified: '2026-05-13T10:00:00.000Z',
+      }],
+      [pendingUpsert!],
+      [local],
+    );
+    expect(await getSyncConflicts()).toHaveLength(1);
+
+    const restored = await restoreSyncConflict({
+      collection_name: 'weights',
+      sync_id: local.sync_id,
+      payload: JSON.stringify(local),
+    });
+
+    expect(restored).toBe(true);
+    const weights = await getWeights();
+    expect(weights).toHaveLength(1);
+    expect(weights[0].weight).toBe(90);
+    // Restore bumps last_modified past the remote winner so it wins next sync.
+    const restoredModified = (weights[0] as { last_modified?: string }).last_modified;
+    expect(restoredModified).toBeDefined();
+    expect(restoredModified!.localeCompare('2026-05-13T10:00:00.000Z')).toBe(1);
+    expect(await getSyncConflicts()).toHaveLength(0);
+    expect(await getSyncOutboxEntries()).toContainEqual(expect.objectContaining({
+      collection_name: 'weights',
+      sync_id: local.sync_id,
+      operation: 'upsert',
+    }));
+  });
+
+  it('dismisses a preserved conflict without touching the record', async () => {
+    await addWeight(90, '2026-05-12T10:00:00.000Z');
+    const local = (await getAllDataForSync()).weights[0];
+    const pendingUpsert = (await getSyncOutboxEntries()).find(entry =>
+      entry.collection_name === 'weights' && entry.sync_id === local.sync_id,
+    );
+    await bulkInsertOrUpdate(
+      'weights',
+      [{
+        sync_id: local.sync_id,
+        weight: 91,
+        date: '2026-05-13T10:00:00.000Z',
+        last_modified: '2026-05-13T10:00:00.000Z',
+      }],
+      [pendingUpsert!],
+      [local],
+    );
+    expect(await getSyncConflicts()).toHaveLength(1);
+
+    await deleteSyncConflict('weights', local.sync_id);
+
+    expect(await getSyncConflicts()).toHaveLength(0);
+    const weights = await getWeights();
+    expect(weights[0].weight).toBe(91);
   });
 
   it('reuses one daily log per local date and aggregates its meals', async () => {

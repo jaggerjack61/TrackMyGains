@@ -4,9 +4,10 @@ import { ThemedView } from '@/components/themed-view';
 import { withAlpha } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { addWorkout, deleteWorkout, getWorkouts, initDatabase, updateWorkout, updateWorkoutOrder, Workout } from '@/services/database';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -39,9 +40,7 @@ export default function RoutineDetailScreen() {
     setWorkouts(data);
   }, [routineId]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useSyncRefresh(loadData);
 
   const handleSaveWorkout = async () => {
     if (!newWorkoutName.trim()) {

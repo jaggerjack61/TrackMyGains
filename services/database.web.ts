@@ -3,8 +3,10 @@ import {
   SYNC_RELATIONSHIPS,
   createSyncId,
   getDailyLogSyncId,
+  isSyncCollectionName,
   legacySyncId,
   type SyncCollectionName,
+  type SyncConflictRecord,
   type SyncOutboxEntry,
   type SyncTombstone,
 } from './sync-records';
@@ -24,6 +26,7 @@ const STORAGE_KEYS = {
   syncMetadata: 'trackmygains_sync_metadata',
   syncOutbox: 'trackmygains_sync_outbox',
   syncTombstones: 'trackmygains_sync_tombstones',
+  syncConflicts: 'trackmygains_sync_conflicts',
 } as const;
 
 const STORAGE_KEY_BY_COLLECTION: Record<SyncCollectionName, string> = {
@@ -1010,6 +1013,7 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   tableName: string,
   records: T[],
   expectedOutboxEntries?: SyncOutboxEntry[],
+  conflictLosers?: T[],
 ) => {
   if (records.length === 0) {
     return { appliedSyncIds: [], skippedSyncIds: [] };
@@ -1028,6 +1032,9 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   const expectedOutboxBySyncId = new Map(
     expectedOutboxEntries?.map(entry => [entry.sync_id, entry]),
   );
+  const conflictLosersBySyncId = new Map(
+    conflictLosers?.map(record => [String(record.sync_id), record]) ?? [],
+  );
   const currentOutboxBySyncId = new Map(
     loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox)
       .filter(entry => entry.collection_name === collectionName)
@@ -1035,6 +1042,7 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
   );
   const appliedSyncIds: string[] = [];
   const skippedSyncIds: string[] = [];
+  const preservedConflicts: { collection_name: string; sync_id: string; payload: string }[] = [];
   const parentIdsBySyncId = new Map<string, number>();
   if (relationship) {
     const parentRecords = loadArray<{ id: number; sync_id: string }>(
@@ -1136,6 +1144,16 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
       recordIndexes.set(record.sync_id, storedRecords.length);
       storedRecords.push(normalizedRecord as Record<string, any>);
     } else {
+      const losingRecord = conflictLosersBySyncId.get(record.sync_id);
+      if (losingRecord) {
+        // The pull overwrites a pending local edit (deterministic LWW).
+        // Preserve the losing version before it is gone for good.
+        preservedConflicts.push({
+          collection_name: collectionName,
+          sync_id: record.sync_id,
+          payload: JSON.stringify(losingRecord),
+        });
+      }
       storedRecords[existingIndex] = {
         ...storedRecords[existingIndex],
         ...normalizedRecord,
@@ -1144,6 +1162,9 @@ export const bulkInsertOrUpdate = async <T extends Record<string, any>>(
     appliedSyncIds.push(record.sync_id);
   }
 
+  if (preservedConflicts.length > 0) {
+    await saveSyncConflicts(preservedConflicts);
+  }
   if (compoundsChanged && localCompounds) {
     saveArray(STORAGE_KEYS.compounds, localCompounds);
   }
@@ -1233,6 +1254,109 @@ export const deleteRecordsBySyncIds = async (tombstones: SyncTombstone[]) => {
 export const getSyncOutboxEntries = async (): Promise<SyncOutboxEntry[]> =>
   loadArray<SyncOutboxEntry>(STORAGE_KEYS.syncOutbox)
     .sort((first, second) => first.changed_at.localeCompare(second.changed_at));
+
+export const getSyncConflicts = async (): Promise<SyncConflictRecord[]> =>
+  loadArray<SyncConflictRecord>(STORAGE_KEYS.syncConflicts);
+
+export const saveSyncConflicts = async (
+  conflicts: { collection_name: string; sync_id: string; payload: string }[],
+) => {
+  if (conflicts.length === 0) return;
+  const stored = loadArray<SyncConflictRecord>(STORAGE_KEYS.syncConflicts);
+  for (const conflict of conflicts) {
+    const existingIndex = stored.findIndex(existing =>
+      existing.collection_name === conflict.collection_name
+      && existing.sync_id === conflict.sync_id,
+    );
+    const entry: SyncConflictRecord = {
+      collection_name: conflict.collection_name as SyncConflictRecord['collection_name'],
+      sync_id: conflict.sync_id,
+      payload: conflict.payload,
+      lost_at: new Date().toISOString(),
+    };
+    if (existingIndex === -1) stored.push(entry);
+    else stored[existingIndex] = entry;
+  }
+  saveRawArray(STORAGE_KEYS.syncConflicts, stored);
+};
+
+// Fields that are computed/joined for sync and must not be stored back.
+const REMOTE_ALIAS_KEYS = new Set([
+  'id',
+  'server_modified_at',
+  'routine_sync_id',
+  'workout_sync_id',
+  'exercise_sync_id',
+  'diet_sync_id',
+  'daily_log_sync_id',
+  'cycle_sync_id',
+  'type',
+  'half_life_hours',
+]);
+
+export const restoreSyncConflict = async (
+  conflict: { collection_name: string; sync_id: string; payload: string },
+): Promise<boolean> => {
+  if (!isSyncCollectionName(conflict.collection_name)) return false;
+  try {
+    const storageKey = STORAGE_KEY_BY_COLLECTION[conflict.collection_name];
+    const storedRecords = loadArray<Record<string, any>>(storageKey);
+    const parsed = JSON.parse(conflict.payload) as Record<string, unknown>;
+    const localRecord: Record<string, any> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!REMOTE_ALIAS_KEYS.has(key)) localRecord[key] = value;
+    }
+    localRecord.last_modified = nowIso();
+
+    const existingIndex = storedRecords.findIndex(record =>
+      String(record.sync_id) === conflict.sync_id,
+    );
+    if (existingIndex === -1) {
+      localRecord.id = nextId(storedRecords);
+      storedRecords.push(localRecord);
+    } else {
+      storedRecords[existingIndex] = {
+        ...storedRecords[existingIndex],
+        ...localRecord,
+      };
+    }
+    // saveArray re-queues the upsert outbox entry for the restored record.
+    saveArray(storageKey, storedRecords);
+
+    // Drop any tombstone/delete markers left by a local delete after the
+    // conflict was recorded, so the restored edit survives the next sync.
+    saveRawArray(
+      STORAGE_KEYS.syncTombstones,
+      loadArray<SyncTombstone>(STORAGE_KEYS.syncTombstones).filter(tombstone =>
+        !(tombstone.collection_name === conflict.collection_name
+          && tombstone.sync_id === conflict.sync_id),
+      ),
+    );
+    saveRawArray(
+      STORAGE_KEYS.syncConflicts,
+      loadArray<SyncConflictRecord>(STORAGE_KEYS.syncConflicts).filter(stored =>
+        !(stored.collection_name === conflict.collection_name
+          && stored.sync_id === conflict.sync_id),
+      ),
+    );
+    return true;
+  } catch (error) {
+    console.error('Error restoring sync conflict:', error);
+    return false;
+  }
+};
+
+export const deleteSyncConflict = async (
+  collectionName: string,
+  syncId: string,
+): Promise<void> => {
+  saveRawArray(
+    STORAGE_KEYS.syncConflicts,
+    loadArray<SyncConflictRecord>(STORAGE_KEYS.syncConflicts).filter(stored =>
+      !(stored.collection_name === collectionName && stored.sync_id === syncId),
+    ),
+  );
+};
 
 export const clearSyncOutboxEntries = async (
   entries: (Pick<SyncOutboxEntry, 'collection_name' | 'sync_id'>

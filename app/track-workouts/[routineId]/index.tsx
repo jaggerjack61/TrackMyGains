@@ -1,21 +1,18 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
-import { addWorkout, deleteWorkout, getWorkouts, initDatabase, updateWorkout, updateWorkoutOrder, Workout } from '@/services/database';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
+import { ListRow } from '@/components/ui/list-row';
+import { Sheet } from '@/components/ui/sheet';
+import { TextField } from '@/components/ui/text-field';
 import { useSyncRefresh } from '@/hooks/use-sync-refresh';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTheme } from '@/hooks/use-theme';
+import { addWorkout, deleteWorkout, getWorkouts, initDatabase, updateWorkout, updateWorkoutOrder, Workout } from '@/services/database';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import {
-  Alert,
-  Modal,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -24,14 +21,13 @@ export default function RoutineDetailScreen() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newWorkoutName, setNewWorkoutName] = useState('');
-  
+
   // Edit mode
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
-  
+
   const router = useRouter();
-  const cardBackgroundColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
+  const { accents } = useTheme();
+  const accent = accents.lifts;
 
   const loadData = useCallback(async () => {
     if (!routineId) return;
@@ -98,121 +94,80 @@ export default function RoutineDetailScreen() {
     }
   };
 
-  const renderItem = ({ item, drag, isActive }: RenderItemParams<Workout>) => {
-    return (
-      <ScaleDecorator>
-        <TouchableOpacity 
-          style={[
-            styles.listItem, 
-            { backgroundColor: cardBackgroundColor },
-            isActive && { backgroundColor: tintColor, opacity: 0.9 }
-          ]}
-          onPress={() => router.push(`/track-workouts/${routineId}/${item.id}`)}
-          onLongPress={drag}
-          disabled={isActive}
-        >
-          <View style={styles.itemContent}>
-            <View
-              style={[
-                styles.iconBox,
-                { backgroundColor: isActive ? withAlpha('#FFFFFF', 0.22) : withAlpha(tintColor, 0.12) },
-              ]}
-            >
-              <MaterialCommunityIcons name="dumbbell" size={24} color={isActive ? '#FFFFFF' : tintColor} />
-            </View>
-            <View>
-              <ThemedText type="defaultSemiBold" style={[styles.itemText, isActive && { color: '#FFF' }]}>{item.name}</ThemedText>
-            </View>
-          </View>
-          <View style={styles.actions}>
-            <TouchableOpacity onPress={() => handleEdit(item)} style={styles.actionButton}>
-                <MaterialCommunityIcons name="pencil-outline" size={24} color={isActive ? '#FFF' : tintColor} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.actionButton}>
-                <MaterialCommunityIcons name="trash-can-outline" size={24} color={isActive ? '#FFF' : "#EF4444"} />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </ScaleDecorator>
-    );
+  const openNewWorkout = () => {
+    setEditingWorkout(null);
+    setNewWorkoutName('');
+    setModalVisible(true);
   };
 
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<Workout>) => (
+    <ScaleDecorator>
+      <ListRow
+        icon="dumbbell"
+        accent={accent}
+        title={item.name}
+        isActive={isActive}
+        onPress={() => router.push(`/track-workouts/${routineId}/${item.id}`)}
+        onLongPress={drag}
+        onEdit={() => handleEdit(item)}
+        onDelete={() => handleDelete(item.id)}
+      />
+    </ScaleDecorator>
+  );
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemedView style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
+      <ThemedView style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header title="Workouts" />
-        
-        {/* List */}
+        <Header eyebrow="Lifts" accent={accent} title="Workouts" />
+
         <DraggableFlatList
-            data={workouts}
-            onDragEnd={onDragEnd}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
-            renderItem={renderItem}
-            ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                    <ThemedText>No workouts yet. Start tracking!</ThemedText>
-                    <ThemedText style={{fontSize: 12, marginTop: 8, opacity: 0.7}}>Long press to reorder</ThemedText>
-                </View>
-            }
+          data={workouts}
+          onDragEnd={onDragEnd}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          ListEmptyComponent={
+            <EmptyState
+              icon="dumbbell"
+              accent={accent}
+              title="No workouts yet"
+              message="Add the sessions in this routine, like Monday or Upper Body."
+              action={<Button label="New workout" icon="plus" color={accent} onPress={openNewWorkout} />}
+            />
+          }
+          ListFooterComponent={
+            workouts.length > 1 ? (
+              <ThemedText type="caption" tone="subtle" style={styles.hint}>
+                Press and hold a workout to reorder
+              </ThemedText>
+            ) : null
+          }
         />
 
-        {/* FAB */}
-        <TouchableOpacity
-            style={[styles.fab, { backgroundColor: tintColor }]}
-            onPress={() => {
-                setEditingWorkout(null);
-                setNewWorkoutName('');
-                setModalVisible(true);
-            }}
-        >
-            <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-        </TouchableOpacity>
+        {workouts.length > 0 && <Fab label="New workout" color={accent} onPress={openNewWorkout} />}
 
-        {/* Modal */}
-        <Modal
-            animationType="slide"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-        >
-            <View style={styles.centeredView}>
-            <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-                <ThemedText type="subtitle" style={styles.modalTitle}>
-                    {editingWorkout ? 'Edit Workout' : 'New Workout'}
-                </ThemedText>
-                
-                <View style={styles.inputGroup}>
-                <ThemedText>Name:</ThemedText>
-                <TextInput
-                    style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                    onChangeText={setNewWorkoutName}
-                    value={newWorkoutName}
-                    placeholder="e.g. Week 1 - Monday"
-                    placeholderTextColor="#999"
-                    autoFocus
-                />
-                </View>
-
-                <View style={styles.modalButtons}>
-                <TouchableOpacity
-                    style={[styles.button, styles.buttonClose]}
-                    onPress={() => setModalVisible(false)}
-                >
-                    <ThemedText>Cancel</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.button, { backgroundColor: tintColor }]}
-                    onPress={handleSaveWorkout}
-                >
-                    <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
-                </TouchableOpacity>
-                </View>
-            </View>
-            </View>
-        </Modal>
-        </ThemedView>
+        <Sheet
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          title={editingWorkout ? 'Rename workout' : 'New workout'}
+          footer={
+            <>
+              <Button label="Cancel" variant="secondary" style={styles.flex} onPress={() => setModalVisible(false)} />
+              <Button label="Save" color={accent} style={styles.flex} onPress={handleSaveWorkout} />
+            </>
+          }>
+          <TextField
+            label="Name"
+            onChangeText={setNewWorkoutName}
+            value={newWorkoutName}
+            placeholder="e.g. Week 1 - Monday"
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={handleSaveWorkout}
+          />
+        </Sheet>
+      </ThemedView>
     </GestureHandlerRootView>
   );
 }
@@ -221,116 +176,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   listContent: {
-    padding: 16,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  listItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  itemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  iconBox: {
-    marginRight: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemText: {
-    fontSize: 16,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    padding: 8,
-    marginLeft: 4,
-  },
-  fab: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  centeredView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalView: {
-    margin: 20,
-    borderRadius: 20,
-    padding: 35,
-    alignItems: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: '80%',
-  },
-  modalTitle: {
-    marginBottom: 20,
+  hint: {
     textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  button: {
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  buttonClose: {
-    backgroundColor: '#ddd',
+    marginTop: 8,
   },
 });

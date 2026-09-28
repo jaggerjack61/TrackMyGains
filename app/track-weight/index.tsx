@@ -1,26 +1,31 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { buildLineChartConfig } from '@/components/ui/chart-theme';
+import { DateField } from '@/components/ui/date-field';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
 import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Sheet } from '@/components/ui/sheet';
+import { Stat } from '@/components/ui/stat';
+import { TextField } from '@/components/ui/text-field';
 import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
-import { withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts, Radii, withAlpha } from '@/constants/theme';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addWeight, deleteWeight, getWeights, initDatabase } from '@/services/database';
-import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Modal,
-  Platform,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -32,6 +37,8 @@ interface WeightRecord {
   date: string;
 }
 
+const formatDelta = (delta: number) => `${delta > 0 ? '+' : ''}${delta.toFixed(1)}`;
+
 export default function TrackWeightScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const chartFrameWidth = screenWidth - DEFAULT_CHART_HORIZONTAL_INSET;
@@ -40,14 +47,9 @@ export default function TrackWeightScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newWeight, setNewWeight] = useState('');
   const [newDate, setNewDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const cardBackgroundColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({}, 'border');
-  const mutedTextColor = useThemeColor({}, 'mutedText');
+  const { colors, accents } = useTheme();
+  const accent = accents.weight;
 
   const loadData = useCallback(async () => {
     await initDatabase();
@@ -116,8 +118,8 @@ export default function TrackWeightScreen() {
     const visibleDatasets = [
       {
         data,
-        color: (opacity = 1) => withAlpha(tintColor, opacity),
-        strokeWidth: 2,
+        color: (opacity = 1) => withAlpha(accent, opacity),
+        strokeWidth: 2.5,
       },
     ];
 
@@ -128,165 +130,147 @@ export default function TrackWeightScreen() {
       datasets: [...visibleDatasets, buildYAxisBoundsDataset(axis, labels.length)],
       legend: ['Weight']
     };
-  }, [chartViewportWidth, chronologicalWeights, tintColor]);
+  }, [accent, chartViewportWidth, chronologicalWeights]);
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    const currentDate = selectedDate || newDate;
-    setNewDate(currentDate);
-    if (Platform.OS === 'android') {
-        setShowDatePicker(false);
-    }
+  const summary = useMemo(() => {
+    if (chronologicalWeights.length === 0) return null;
+    const first = chronologicalWeights[0];
+    const latest = chronologicalWeights[chronologicalWeights.length - 1];
+    return {
+      latest,
+      change: latest.weight - first.weight,
+      entries: chronologicalWeights.length,
+    };
+  }, [chronologicalWeights]);
+
+  const openAddWeight = () => {
+    setNewWeight('');
+    setNewDate(new Date());
+    setModalVisible(true);
   };
 
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="Track Weight" />
+      <Header eyebrow="Weight" accent={accent} title="Body weight" />
 
-      {/* Graph */}
-      <View style={styles.chartContainer}>
-        {graphData ? (
-          <HorizontalChartScrollView
-            viewportWidth={chartViewportWidth}
-            contentWidth={graphData.chartWidth}
-            yAxis={{ labels: graphData.axis.labels, color: textColor }}
-          >
-            <LineChart
-              data={{
-                labels: graphData.labels,
-                datasets: graphData.datasets
-              }}
-              width={graphData.chartWidth}
-              height={DEFAULT_CHART_HEIGHT}
-              chartConfig={{
-                backgroundColor: backgroundColor,
-                backgroundGradientFrom: backgroundColor,
-                backgroundGradientTo: backgroundColor,
-                decimalPlaces: graphData.axis.decimalPlaces,
-                color: (opacity = 1) => withAlpha(tintColor, opacity),
-                labelColor: () => textColor,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: "6",
-                  strokeWidth: "2",
-                  stroke: tintColor,
-                }
-              }}
-              bezier
-              fromNumber={graphData.axis.max}
-              fromZero={graphData.axis.min === 0}
-              segments={graphData.axis.segments}
-              style={{
-                marginVertical: 8,
-                borderRadius: 16,
-                paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
-              }}
-              withHorizontalLabels={false}
-              hidePointsAtIndex={graphData.labels.length > 10 ? Array.from({ length: graphData.labels.length }, (_, i) => i).filter(i => i % 5 !== 0) : []}
-            />
-          </HorizontalChartScrollView>
-        ) : (
-          <View style={styles.noDataContainer}>
-            <ThemedText>No data yet</ThemedText>
-          </View>
-        )}
-      </View>
-
-      {/* List */}
       <FlatList
         data={sortedWeights}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={[styles.listItem, { borderBottomColor: borderColor }]}>
-            <View>
-              <ThemedText type="defaultSemiBold">{item.weight} kg</ThemedText>
-              <ThemedText style={styles.dateText}>{new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}</ThemedText>
+        ListHeaderComponent={
+          summary && graphData ? (
+            <View style={styles.headerContent}>
+              <Card style={styles.summaryCard}>
+                <Stat label="Current" value={summary.latest.weight} unit="kg" size="lg" style={styles.summaryMain} />
+                <View style={styles.summarySide}>
+                  <Stat label="Change" value={formatDelta(summary.change)} unit="kg" size="sm" />
+                  <Stat label="Entries" value={summary.entries} size="sm" />
+                </View>
+              </Card>
+
+              <Card style={styles.chartCard}>
+                <HorizontalChartScrollView
+                  viewportWidth={chartViewportWidth}
+                  contentWidth={graphData.chartWidth}
+                  yAxis={{ labels: graphData.axis.labels, color: colors.subtleText }}
+                >
+                  <LineChart
+                    data={{
+                      labels: graphData.labels,
+                      datasets: graphData.datasets
+                    }}
+                    width={graphData.chartWidth}
+                    height={DEFAULT_CHART_HEIGHT}
+                    chartConfig={buildLineChartConfig({ colors, color: accent, decimalPlaces: graphData.axis.decimalPlaces })}
+                    bezier
+                    fromNumber={graphData.axis.max}
+                    fromZero={graphData.axis.min === 0}
+                    segments={graphData.axis.segments}
+                    style={styles.chart}
+                    withHorizontalLabels={false}
+                    withVerticalLines={false}
+                    withOuterLines={false}
+                    hidePointsAtIndex={graphData.labels.length > 10 ? Array.from({ length: graphData.labels.length }, (_, i) => i).filter(i => i % 5 !== 0) : []}
+                  />
+                </HorizontalChartScrollView>
+              </Card>
+
+              <SectionHeader title="History" style={styles.historyHeader} />
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.id)}>
-              <MaterialCommunityIcons name="trash-can-outline" size={24} color="#EF4444" />
-            </TouchableOpacity>
-          </View>
-        )}
+          ) : null
+        }
+        renderItem={({ item, index }) => {
+          const previous = sortedWeights[index + 1];
+          const delta = previous ? item.weight - previous.weight : null;
+          const itemDate = new Date(item.date);
+          return (
+            <Card style={styles.listItem}>
+              <View style={styles.itemMain}>
+                <ThemedText type="heading">
+                  {item.weight}
+                  <ThemedText type="caption" tone="muted"> kg</ThemedText>
+                </ThemedText>
+                <ThemedText type="caption" tone="muted">
+                  {itemDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                </ThemedText>
+              </View>
+              {delta !== null && (
+                <View style={[styles.deltaChip, { backgroundColor: colors.cardMuted }]}>
+                  <MaterialCommunityIcons
+                    name={delta > 0 ? 'arrow-up' : delta < 0 ? 'arrow-down' : 'minus'}
+                    size={14}
+                    color={colors.mutedText}
+                  />
+                  <ThemedText type="caption" tone="muted" style={styles.deltaText}>
+                    {Math.abs(delta).toFixed(1)}
+                  </ThemedText>
+                </View>
+              )}
+              <IconButton
+                icon="trash-can-outline"
+                color={colors.danger}
+                size={36}
+                onPress={() => handleDelete(item.id)}
+                accessibilityLabel="Delete weigh-in"
+              />
+            </Card>
+          );
+        }}
+        ListEmptyComponent={
+          <EmptyState
+            icon="scale-bathroom"
+            accent={accent}
+            title="No weigh-ins yet"
+            message="Log your weight regularly to see your trend over time."
+            action={<Button label="Log weight" icon="plus" color={accent} onPress={openAddWeight} />}
+          />
+        }
         contentContainerStyle={styles.listContent}
       />
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={() => setModalVisible(true)}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-      </TouchableOpacity>
+      {weights.length > 0 && <Fab label="Log weight" color={accent} onPress={openAddWeight} />}
 
-      {/* Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <Sheet
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.centeredView}>
-          <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>Add Weight</ThemedText>
-            
-            <View style={styles.inputGroup}>
-              <ThemedText>Date:</ThemedText>
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                style={[styles.modalDateButton, { borderColor }]}
-              >
-                <ThemedText>{newDate.toLocaleDateString()}</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {showDatePicker && (
-              <View>
-                <DateTimePicker
-                    value={newDate}
-                    mode="date"
-                    display="default"
-                    onChange={onDateChange}
-                />
-                {Platform.OS === 'ios' && (
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.iosDatePickerDone}>
-                        <ThemedText style={{color: tintColor}}>Done</ThemedText>
-                    </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            <View style={styles.inputGroup}>
-              <ThemedText>Weight (kg):</ThemedText>
-              <TextInput
-                style={[styles.input, { color: textColor, borderColor: borderColor }]}
-                onChangeText={setNewWeight}
-                value={newWeight}
-                keyboardType="numeric"
-                placeholder="0.0"
-                placeholderTextColor={mutedTextColor}
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonClose, { borderColor }]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Cancel</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: tintColor }]}
-                onPress={handleAddWeight}
-              >
-                <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        title="Log weight"
+        footer={
+          <>
+            <Button label="Cancel" variant="secondary" style={styles.flex} onPress={() => setModalVisible(false)} />
+            <Button label="Save" color={accent} style={styles.flex} onPress={handleAddWeight} />
+          </>
+        }>
+        <DateField label="Date" value={newDate} onChange={setNewDate} />
+        <TextField
+          label="Weight"
+          suffix="kg"
+          onChangeText={setNewWeight}
+          value={newWeight}
+          keyboardType="decimal-pad"
+          placeholder="0.0"
+          autoFocus
+        />
+      </Sheet>
     </ThemedView>
   );
 }
@@ -295,108 +279,60 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  chartContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  noDataContainer: {
-    height: DEFAULT_CHART_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
+  flex: {
+    flex: 1,
   },
   listContent: {
     paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 120,
+  },
+  headerContent: {
+    gap: 12,
+  },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  summaryMain: {
+    flex: 1,
+  },
+  summarySide: {
+    gap: 10,
+    minWidth: 96,
+  },
+  chartCard: {
+    paddingHorizontal: 12,
+  },
+  chart: {
+    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
+  },
+  historyHeader: {
+    marginTop: 16,
+    marginBottom: 4,
   },
   listItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    paddingRight: 8,
   },
-  dateText: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  fab: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: 20,
-    bottom: 100,
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  centeredView: {
+  itemMain: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    gap: 2,
   },
-  modalView: {
-    margin: 20,
-    borderRadius: 20,
-    padding: 35,
-    alignItems: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: '80%',
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  modalDateButton: {
-    padding: 10,
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-  },
-  input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-  },
-  modalButtons: {
+  deltaChip: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  button: {
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-    minWidth: 80,
     alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radii.full,
   },
-  buttonClose: {
-    backgroundColor: 'transparent',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ccc',
-  },
-  iosDatePickerDone: {
-    alignItems: 'flex-end',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
+  deltaText: {
+    fontFamily: Fonts?.sansBold,
   },
 });

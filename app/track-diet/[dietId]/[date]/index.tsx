@@ -1,29 +1,37 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Sheet } from '@/components/ui/sheet';
+import { TextField } from '@/components/ui/text-field';
+import { Fonts, Radii } from '@/constants/theme';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { addMeal, deleteMeal, getDailyLogByDate, getMeals, getRecentMeals, Meal, updateMeal } from '@/services/database';
 import { parseLocalDateKey } from '@/services/date-utils';
-import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
-    Modal,
+    Pressable,
     StyleSheet,
-    TextInput,
-    TouchableOpacity,
     View,
 } from 'react-native';
+
+const formatAmount = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
 
 export default function DailyLogScreen() {
   const { dietId, date } = useLocalSearchParams<{ dietId: string; date: string }>();
   const [meals, setMeals] = useState<Meal[]>([]);
   const [dailyLogId, setDailyLogId] = useState<number | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  
+
   // Form State
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [name, setName] = useState('');
@@ -34,9 +42,8 @@ export default function DailyLogScreen() {
   const [carbs, setCarbs] = useState('');
   const [fats, setFats] = useState('');
 
-  const cardBackgroundColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
+  const { colors, accents, macros } = useTheme();
+  const accent = accents.diet;
 
   const loadData = useCallback(async () => {
     if (!dietId || !date) return;
@@ -180,178 +187,214 @@ export default function DailyLogScreen() {
       }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
   }, [meals]);
 
+  const macroBreakdown = useMemo(() => {
+    const energy = {
+      protein: totalStats.protein * 4,
+      carbs: totalStats.carbs * 4,
+      fats: totalStats.fats * 9,
+    };
+    const totalEnergy = energy.protein + energy.carbs + energy.fats;
+    return (['protein', 'carbs', 'fats'] as const).map((key) => ({
+      key,
+      label: key === 'fats' ? 'Fat' : key.charAt(0).toUpperCase() + key.slice(1),
+      grams: totalStats[key],
+      share: totalEnergy > 0 ? energy[key] / totalEnergy : 0,
+      color: macros[key],
+    }));
+  }, [macros, totalStats]);
+
+  const openAddMeal = () => {
+    resetForm();
+    setModalVisible(true);
+  };
+
+  const parsedDate = date ? parseLocalDateKey(date) : null;
+
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title={date ? parseLocalDateKey(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Daily Log'} />
+      <Header
+        eyebrow={parsedDate ? parsedDate.toLocaleDateString(undefined, { weekday: 'long' }) : 'Diet'}
+        accent={accent}
+        title={parsedDate ? parsedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric' }) : 'Daily Log'}
+      />
 
       <FlatList
         ListHeaderComponent={
-          <View style={[styles.summaryCard, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.summaryTitle}>Daily Totals</ThemedText>
-            <View style={styles.summaryStats}>
-                <View style={styles.summaryItem}>
-                    <ThemedText style={styles.statLabel}>Calories</ThemedText>
-                    <ThemedText type="title" style={{color: tintColor}}>{totalStats.calories}</ThemedText>
+          <View>
+            <Card style={styles.summaryCard}>
+              <View style={styles.caloriesRow}>
+                <View>
+                  <ThemedText type="overline" tone="subtle">Calories</ThemedText>
+                  <ThemedText style={[styles.calories, { color: colors.text }]}>
+                    {formatAmount(totalStats.calories)}
+                    <ThemedText style={[styles.caloriesUnit, { color: colors.mutedText }]}> kcal</ThemedText>
+                  </ThemedText>
                 </View>
-                <View style={styles.summaryItem}>
-                    <ThemedText style={styles.statLabel}>Protein</ThemedText>
-                    <ThemedText type="subtitle">{totalStats.protein}g</ThemedText>
-                </View>
-                <View style={styles.summaryItem}>
-                    <ThemedText style={styles.statLabel}>Carbs</ThemedText>
-                    <ThemedText type="subtitle">{totalStats.carbs}g</ThemedText>
-                </View>
-                <View style={styles.summaryItem}>
-                    <ThemedText style={styles.statLabel}>Fats</ThemedText>
-                    <ThemedText type="subtitle">{totalStats.fats}g</ThemedText>
-                </View>
-            </View>
+                <ThemedText type="caption" tone="muted">
+                  {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
+                </ThemedText>
+              </View>
+
+              <View style={[styles.splitBar, { backgroundColor: colors.cardMuted }]}>
+                {macroBreakdown.map((macro) =>
+                  macro.share > 0 ? (
+                    <View key={macro.key} style={{ flex: macro.share, backgroundColor: macro.color }} />
+                  ) : null,
+                )}
+              </View>
+
+              <View style={styles.macroGrid}>
+                {macroBreakdown.map((macro) => (
+                  <View key={macro.key} style={styles.macroCell}>
+                    <View style={styles.macroLabelRow}>
+                      <View style={[styles.macroDot, { backgroundColor: macro.color }]} />
+                      <ThemedText type="caption" tone="muted">{macro.label}</ThemedText>
+                    </View>
+                    <ThemedText style={styles.macroValue}>
+                      {formatAmount(macro.grams)}
+                      <ThemedText type="caption" tone="muted"> g</ThemedText>
+                    </ThemedText>
+                    <ThemedText type="caption" tone="subtle">{Math.round(macro.share * 100)}%</ThemedText>
+                  </View>
+                ))}
+              </View>
+            </Card>
+
+            {meals.length > 0 && <SectionHeader title="Meals" caption="Tap a meal to edit it" style={styles.listHeader} />}
           </View>
         }
         data={meals}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => handleEdit(item)}
-          >
-            <View style={styles.itemHeader}>
-              <ThemedText type="defaultSemiBold">{item.name}</ThemedText>
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
+          <Card style={styles.listItem} onPress={() => handleEdit(item)} accessibilityLabel={`Edit ${item.name}`}>
+            <View style={styles.itemMain}>
+              <View style={styles.itemTitleRow}>
+                <ThemedText type="defaultSemiBold" numberOfLines={1} style={styles.itemName}>{item.name}</ThemedText>
+                <ThemedText type="defaultSemiBold" style={{ color: accent }}>{item.calories} kcal</ThemedText>
+              </View>
+              <View style={styles.itemMacros}>
+                <MacroText color={macros.protein} label="Protein" value={item.protein} />
+                <MacroText color={macros.carbs} label="Carbs" value={item.carbs} />
+                <MacroText color={macros.fats} label="Fat" value={item.fats} />
+              </View>
             </View>
-            <View style={styles.itemDetails}>
-                <ThemedText style={styles.detailText}>{item.calories} kcal</ThemedText>
-                <ThemedText style={styles.detailText}>P: {item.protein}g</ThemedText>
-                <ThemedText style={styles.detailText}>C: {item.carbs}g</ThemedText>
-                <ThemedText style={styles.detailText}>F: {item.fats}g</ThemedText>
-            </View>
-          </TouchableOpacity>
+            <IconButton
+              icon="trash-can-outline"
+              color={colors.danger}
+              size={36}
+              onPress={() => handleDelete(item.id)}
+              accessibilityLabel={`Delete ${item.name}`}
+            />
+          </Card>
         )}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <ThemedText>No meals logged yet.</ThemedText>
-          </View>
+          <EmptyState
+            icon="silverware-fork-knife"
+            accent={accent}
+            title="No meals logged"
+            message="Add what you ate today to track calories and macros."
+            action={<Button label="Add meal" icon="plus" color={accent} onPress={openAddMeal} />}
+          />
         }
       />
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={() => {
-          resetForm();
-          setModalVisible(true);
-        }}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-      </TouchableOpacity>
+      {meals.length > 0 && <Fab label="Add meal" color={accent} onPress={openAddMeal} />}
 
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <Sheet
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.centeredView}>
-          <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>
-              {editingMeal ? 'Edit Meal' : 'Add Meal'}
-            </ThemedText>
-
-            <View style={[styles.inputGroup, { zIndex: 1000, elevation: 10 }]}>
-                <ThemedText>Name:</ThemedText>
-                <TextInput
-                    style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                    onChangeText={handleNameChange}
-                    value={name}
-                    placeholder="e.g. Chicken Breast"
-                    placeholderTextColor="#999"
-                />
-                {showSuggestions && suggestions.length > 0 && (
-                    <View style={[styles.suggestionsContainer, { backgroundColor: cardBackgroundColor, borderColor: tintColor }]}>
-                        <FlatList
-                            data={suggestions}
-                            keyExtractor={(item) => item.id.toString()}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity style={styles.suggestionItem} onPress={() => handleSuggestionPress(item)}>
-                                    <ThemedText>{item.name}</ThemedText>
-                                </TouchableOpacity>
-                            )}
-                        />
-                    </View>
-                )}
+        onClose={() => setModalVisible(false)}
+        title={editingMeal ? 'Edit meal' : 'Add meal'}
+        footer={
+          <>
+            <Button label="Cancel" variant="secondary" style={styles.flex} onPress={() => setModalVisible(false)} />
+            <Button label="Save" color={accent} style={styles.flex} onPress={handleSaveMeal} />
+          </>
+        }>
+        <View>
+          <TextField
+            label="Name"
+            icon="magnify"
+            onChangeText={handleNameChange}
+            value={name}
+            placeholder="e.g. Chicken Breast"
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <View style={[styles.suggestions, { backgroundColor: colors.cardMuted }]}>
+              {suggestions.map((item, index) => (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="button"
+                  onPress={() => handleSuggestionPress(item)}
+                  style={({ pressed }) => [
+                    styles.suggestion,
+                    index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                    pressed && { backgroundColor: colors.border },
+                  ]}>
+                  <MaterialCommunityIcons name="history" size={16} color={colors.subtleText} />
+                  <ThemedText numberOfLines={1} style={styles.suggestionName}>{item.name}</ThemedText>
+                  <ThemedText type="caption" tone="muted">{item.calories} kcal</ThemedText>
+                </Pressable>
+              ))}
             </View>
-
-            <View style={styles.formRow}>
-              <View style={{flex: 1, marginRight: 8}}>
-                <ThemedText>Calories:</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                  onChangeText={setCalories}
-                  value={calories}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              <View style={{flex: 1}}>
-                <ThemedText>Protein (g):</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                  onChangeText={setProtein}
-                  value={protein}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            <View style={styles.formRow}>
-              <View style={{flex: 1, marginRight: 8}}>
-                <ThemedText>Carbs (g):</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                  onChangeText={setCarbs}
-                  value={carbs}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              <View style={{flex: 1}}>
-                <ThemedText>Fats (g):</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: textColor, borderColor: tintColor }]}
-                  onChangeText={setFats}
-                  value={fats}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonClose]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Cancel</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: tintColor }]}
-                onPress={handleSaveMeal}
-              >
-                <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
+          )}
         </View>
-      </Modal>
+
+        <View style={styles.formRow}>
+          <TextField
+            label="Calories"
+            suffix="kcal"
+            containerStyle={styles.flex}
+            onChangeText={setCalories}
+            value={calories}
+            keyboardType="number-pad"
+            placeholder="0"
+          />
+          <TextField
+            label="Protein"
+            suffix="g"
+            containerStyle={styles.flex}
+            onChangeText={setProtein}
+            value={protein}
+            keyboardType="decimal-pad"
+            placeholder="0"
+          />
+        </View>
+
+        <View style={styles.formRow}>
+          <TextField
+            label="Carbs"
+            suffix="g"
+            containerStyle={styles.flex}
+            onChangeText={setCarbs}
+            value={carbs}
+            keyboardType="decimal-pad"
+            placeholder="0"
+          />
+          <TextField
+            label="Fat"
+            suffix="g"
+            containerStyle={styles.flex}
+            onChangeText={setFats}
+            value={fats}
+            keyboardType="decimal-pad"
+            placeholder="0"
+          />
+        </View>
+      </Sheet>
     </ThemedView>
+  );
+}
+
+function MacroText({ color, label, value }: { color: string; label: string; value: number }) {
+  return (
+    <View style={styles.macroLabelRow}>
+      <View style={[styles.macroDot, { backgroundColor: color }]} />
+      <ThemedText type="caption" tone="muted">
+        {label} {formatAmount(value)}g
+      </ThemedText>
+    </View>
   );
 }
 
@@ -359,145 +402,111 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   listContent: {
-    padding: 16,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
   summaryCard: {
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    gap: 16,
   },
-  summaryTitle: {
-      marginBottom: 12,
-      textAlign: 'center',
+  caloriesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
-  summaryStats: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+  calories: {
+    fontFamily: Fonts?.display,
+    fontSize: 40,
+    lineHeight: 48,
+    letterSpacing: -1.2,
   },
-  summaryItem: {
-      alignItems: 'center',
+  caloriesUnit: {
+    fontFamily: Fonts?.sansBold,
+    fontSize: 16,
+    letterSpacing: 0,
   },
-  statLabel: {
-      fontSize: 12,
-      opacity: 0.7,
-      marginBottom: 4,
+  splitBar: {
+    height: 10,
+    borderRadius: Radii.full,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    gap: 2,
+  },
+  macroGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  macroCell: {
+    flex: 1,
+    gap: 2,
+  },
+  macroLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  macroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  macroValue: {
+    fontFamily: Fonts?.displayBold,
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  listHeader: {
+    marginTop: 24,
+    marginBottom: 4,
   },
   listItem: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  itemHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 14,
+    paddingRight: 8,
   },
-  itemDetails: {
-      flexDirection: 'row',
-      gap: 12,
-  },
-  detailText: {
-      fontSize: 14,
-      opacity: 0.8,
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  fab: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  centeredView: {
+  itemMain: {
     flex: 1,
-    justifyContent: 'center',
+    gap: 6,
+  },
+  itemTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    gap: 12,
   },
-  modalView: {
-    margin: 20,
-    borderRadius: 20,
-    padding: 25,
-    width: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+  itemName: {
+    flex: 1,
   },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
+  itemMacros: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 14,
+    rowGap: 2,
   },
-  inputGroup: {
-      marginBottom: 16,
+  suggestions: {
+    marginTop: 8,
+    borderRadius: Radii.control,
+    overflow: 'hidden',
+  },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  suggestionName: {
+    flex: 1,
+    fontSize: 15,
   },
   formRow: {
-    marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  button: {
-    borderRadius: 10,
-    padding: 12,
-    elevation: 2,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  buttonClose: {
-    backgroundColor: '#ddd',
-  },
-  suggestionsContainer: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    elevation: 10,
-    borderWidth: 1,
-    borderRadius: 8,
-    maxHeight: 150,
-  },
-  suggestionItem: {
-    padding: 10,
-    borderBottomWidth: 1,
+    gap: 12,
   },
 });

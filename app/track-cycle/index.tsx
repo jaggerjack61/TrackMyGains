@@ -1,20 +1,25 @@
 import { Header } from '@/components/Header';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 
+import { formatDateRange, getCycleProgress } from '@/components/cycle/cycle-progress';
+import { CycleProgressBar, CycleStatusChip } from '@/components/cycle/cycle-summary';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
 import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { Cycle, deleteCycle, getCycles } from '@/services/database';
 
 export default function TrackCycleScreen() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const router = useRouter();
-  const primaryColor = useThemeColor({}, 'tint');
-  const cardBackgroundColor = useThemeColor({}, 'card');
+  const { colors, accents } = useTheme();
+  const accent = accents.cycle;
 
   const loadCycles = useCallback(async () => {
     const data = await getCycles();
@@ -23,31 +28,49 @@ export default function TrackCycleScreen() {
 
   useSyncRefresh(loadCycles);
 
-  const handleDelete = async (id: number) => {
-    await deleteCycle(id);
-    loadCycles();
+  const handleDelete = (cycle: Cycle) => {
+    Alert.alert('Delete cycle', `Delete "${cycle.name}" and all of its compounds?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteCycle(cycle.id);
+            loadCycles();
+          } catch (e: any) {
+            Alert.alert('Error', 'Failed to delete cycle: ' + (e.message || e));
+          }
+        },
+      },
+    ]);
   };
 
   const renderItem = ({ item }: { item: Cycle }) => (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-      onPress={() => router.push(`/track-cycle/${item.id}`)}
-    >
-      <View style={styles.cardContent}>
-        <ThemedText type="subtitle">{item.name}</ThemedText>
-        <ThemedText style={styles.dateText}>
-          {new Date(item.start_date).toLocaleDateString()} - {new Date(item.end_date).toLocaleDateString()}
-        </ThemedText>
+    <Card style={styles.card} onPress={() => router.push(`/track-cycle/${item.id}`)} accessibilityLabel={item.name}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardTitle}>
+          <ThemedText type="heading" numberOfLines={1}>{item.name}</ThemedText>
+          <ThemedText type="caption" tone="muted">
+            {formatDateRange(item.start_date, item.end_date)}
+          </ThemedText>
+        </View>
+        <CycleStatusChip status={getCycleProgress(item.start_date, item.end_date).status} accent={accent} />
+        <IconButton
+          icon="trash-can-outline"
+          color={colors.danger}
+          size={36}
+          onPress={() => handleDelete(item)}
+          accessibilityLabel={`Delete ${item.name}`}
+        />
       </View>
-      <TouchableOpacity onPress={() => handleDelete(item.id)} hitSlop={10}>
-        <MaterialCommunityIcons name="delete-outline" size={24} color="#EF4444" />
-      </TouchableOpacity>
-    </TouchableOpacity>
+      <CycleProgressBar startDate={item.start_date} endDate={item.end_date} accent={accent} />
+    </Card>
   );
 
   return (
     <ThemedView style={styles.container}>
-      <Header title="Cycles" />
+      <Header eyebrow="Cycle" accent={accent} title="Cycles" />
 
       <FlatList
         data={cycles}
@@ -55,18 +78,17 @@ export default function TrackCycleScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <ThemedText>No cycles found. Start tracking!</ThemedText>
-          </View>
+          <EmptyState
+            icon="needle"
+            accent={accent}
+            title="No cycles yet"
+            message="Plan a cycle, add compounds and see estimated levels over time."
+            action={<Button label="New cycle" icon="plus" color={accent} onPress={() => router.push('/track-cycle/add')} />}
+          />
         }
       />
 
-      <Pressable
-        style={[styles.fab, { backgroundColor: primaryColor }]}
-        onPress={() => router.push('/track-cycle/add')}
-      >
-        <MaterialCommunityIcons name="plus" size={24} color="white" />
-      </Pressable>
+      {cycles.length > 0 && <Fab label="New cycle" color={accent} onPress={() => router.push('/track-cycle/add')} />}
     </ThemedView>
   );
 }
@@ -76,46 +98,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
     gap: 12,
   },
   card: {
-    padding: 16,
-    borderRadius: 12,
+    gap: 16,
+    paddingRight: 10,
+  },
+  cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    alignItems: 'flex-start',
+    gap: 8,
   },
-  cardContent: {
+  cardTitle: {
     flex: 1,
-  },
-  dateText: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: 4,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
+    gap: 2,
   },
 });

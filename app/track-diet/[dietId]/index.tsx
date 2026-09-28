@@ -1,15 +1,23 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { buildLineChartConfig } from '@/components/ui/chart-theme';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
 import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { SectionHeader } from '@/components/ui/section-header';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Sheet } from '@/components/ui/sheet';
 import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
-import { withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts, Radii, withAlpha } from '@/constants/theme';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addDailyLog, DailyLogWithStats, deleteDailyLog, getDailyLogsWithStats } from '@/services/database';
 import { formatLocalDateKey, parseLocalDateKey } from '@/services/date-utils';
-import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,7 +27,6 @@ import {
     FlatList,
     Platform,
     StyleSheet,
-    TouchableOpacity,
     View,
     useWindowDimensions,
 } from 'react-native';
@@ -39,10 +46,14 @@ export default function DietDetailScreen() {
   const [graphMetric, setGraphMetric] = useState<GraphMetric>('calories');
   const router = useRouter();
 
-  const cardBackgroundColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
+  const { scheme, colors, accents, macros } = useTheme();
+  const accent = accents.diet;
+  const metricColors: Record<GraphMetric, string> = {
+    calories: accent,
+    protein: macros.protein,
+    carbs: macros.carbs,
+    fats: macros.fats,
+  };
 
   const loadData = useCallback(async () => {
     if (!dietId) return;
@@ -143,39 +154,29 @@ export default function DietDetailScreen() {
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="Diet History" />
+      <Header eyebrow="Diet" accent={accent} title="Diet history" />
 
       <FlatList
         ListHeaderComponent={
-          <View>
-             {/* Graph Section */}
-             <View style={styles.chartContainer}>
-              <View style={styles.metricToggle}>
-                {(['calories', 'protein', 'carbs', 'fats'] as GraphMetric[]).map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[
-                      styles.metricButton,
-                      graphMetric === m && { backgroundColor: tintColor },
-                      { borderColor: tintColor }
-                    ]}
-                    onPress={() => setGraphMetric(m)}
-                  >
-                    <ThemedText style={[
-                      styles.metricText,
-                      graphMetric === m && { color: '#FFF' }
-                    ]}>
-                      {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {graphData ? (
+          graphData ? (
+            <View style={styles.headerContent}>
+              <Card style={styles.chartCard}>
+                <SegmentedControl
+                  size="sm"
+                  accent={metricColors[graphMetric]}
+                  options={[
+                    { value: 'calories', label: 'Calories' },
+                    { value: 'protein', label: 'Protein' },
+                    { value: 'carbs', label: 'Carbs' },
+                    { value: 'fats', label: 'Fats' },
+                  ]}
+                  value={graphMetric}
+                  onChange={setGraphMetric}
+                />
                 <HorizontalChartScrollView
                   viewportWidth={chartViewportWidth}
                   contentWidth={graphData.chartWidth}
-                  yAxis={{ labels: graphData.axis.labels, color: textColor }}
+                  yAxis={{ labels: graphData.axis.labels, color: colors.subtleText }}
                 >
                   <LineChart
                     data={{
@@ -184,109 +185,129 @@ export default function DietDetailScreen() {
                     }}
                     width={graphData.chartWidth}
                     height={DEFAULT_CHART_HEIGHT}
-                    chartConfig={{
-                      backgroundColor: backgroundColor,
-                      backgroundGradientFrom: backgroundColor,
-                      backgroundGradientTo: backgroundColor,
+                    chartConfig={buildLineChartConfig({
+                      colors,
+                      color: metricColors[graphMetric],
                       decimalPlaces: graphData.axis.decimalPlaces,
-                      color: (opacity = 1) => withAlpha(tintColor, opacity),
-                      labelColor: () => textColor,
-                      style: { borderRadius: 16 },
-                      propsForDots: { r: "4", strokeWidth: "2", stroke: tintColor }
-                    }}
+                    })}
                     bezier
                     fromNumber={graphData.axis.max}
                     fromZero={graphData.axis.min === 0}
                     segments={graphData.axis.segments}
-                    style={{ marginVertical: 8, borderRadius: 16, paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT }}
+                    style={styles.chart}
                     withHorizontalLabels={false}
+                    withVerticalLines={false}
+                    withOuterLines={false}
                   />
                 </HorizontalChartScrollView>
-              ) : (
-                <View style={styles.noDataContainer}>
-                  <ThemedText>No data yet</ThemedText>
-                </View>
-              )}
-            </View>
+              </Card>
 
-            <ThemedText type="subtitle" style={styles.sectionTitle}>Daily Logs</ThemedText>
-          </View>
+              <SectionHeader title="Daily logs" caption={`${dailyLogs.length} ${dailyLogs.length === 1 ? 'day' : 'days'} tracked`} style={styles.listHeader} />
+            </View>
+          ) : null
         }
         data={dailyLogs}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={[styles.listItem, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => router.push(`/track-diet/${dietId}/${item.date}`)}
-          >
-            <View style={styles.itemHeader}>
-                <View style={styles.dateContainer}>
-                    <MaterialCommunityIcons name="calendar" size={20} color={tintColor} />
-                    <ThemedText type="defaultSemiBold" style={styles.dateText}>
-                        {parseLocalDateKey(item.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </ThemedText>
+        renderItem={({ item }) => {
+          const logDate = parseLocalDateKey(item.date);
+          return (
+            <Card
+              style={styles.listItem}
+              onPress={() => router.push(`/track-diet/${dietId}/${item.date}`)}
+              accessibilityLabel={`Open log for ${logDate.toLocaleDateString()}`}>
+              <View style={[styles.dateBadge, { backgroundColor: withAlpha(accent, scheme === 'dark' ? 0.18 : 0.12) }]}>
+                <ThemedText type="overline" style={{ color: accent }}>
+                  {logDate.toLocaleDateString(undefined, { weekday: 'short' })}
+                </ThemedText>
+                <ThemedText style={[styles.dateDay, { color: accent }]}>{logDate.getDate()}</ThemedText>
+              </View>
+              <View style={styles.itemMain}>
+                <ThemedText type="heading">
+                  {item.totalStats.calories}
+                  <ThemedText type="caption" tone="muted"> kcal</ThemedText>
+                </ThemedText>
+                <View style={styles.macroRow}>
+                  <MacroText color={macros.protein} label="P" value={item.totalStats.protein} />
+                  <MacroText color={macros.carbs} label="C" value={item.totalStats.carbs} />
+                  <MacroText color={macros.fats} label="F" value={item.totalStats.fats} />
                 </View>
-                <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-                </TouchableOpacity>
-            </View>
-            <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                    <ThemedText style={styles.statLabel}>Cals</ThemedText>
-                    <ThemedText type="defaultSemiBold">{item.totalStats.calories}</ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                    <ThemedText style={styles.statLabel}>Pro</ThemedText>
-                    <ThemedText type="defaultSemiBold">{item.totalStats.protein}g</ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                    <ThemedText style={styles.statLabel}>Carbs</ThemedText>
-                    <ThemedText type="defaultSemiBold">{item.totalStats.carbs}g</ThemedText>
-                </View>
-                <View style={styles.statItem}>
-                    <ThemedText style={styles.statLabel}>Fat</ThemedText>
-                    <ThemedText type="defaultSemiBold">{item.totalStats.fats}g</ThemedText>
-                </View>
-            </View>
-          </TouchableOpacity>
-        )}
+              </View>
+              <IconButton
+                icon="trash-can-outline"
+                color={colors.danger}
+                size={36}
+                onPress={() => handleDelete(item.id)}
+                accessibilityLabel="Delete day"
+              />
+              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.subtleText} />
+            </Card>
+          );
+        }}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-                <ThemedText>No days tracked yet.</ThemedText>
-            </View>
+          <EmptyState
+            icon="calendar-plus"
+            accent={accent}
+            title="No days tracked yet"
+            message="Add a day, then log what you ate to see your calories and macros."
+            action={<Button label="Add day" icon="plus" color={accent} onPress={handleAddDay} />}
+          />
         }
       />
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={handleAddDay}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-      </TouchableOpacity>
+      {dailyLogs.length > 0 && (
+        <Fab label="Add day" icon="calendar-plus" color={accent} onPress={handleAddDay} />
+      )}
 
-      {showDatePicker && (
-        <View>
-            <DateTimePicker
+      {Platform.OS !== 'ios' && showDatePicker && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
+
+      {Platform.OS === 'ios' && (
+        <Sheet
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          title="Add a day"
+          subtitle="Choose the date you want to log"
+          footer={
+            <Button
+              label="Add day"
+              color={accent}
+              loading={isAddingDay}
+              style={styles.flex}
+              onPress={() => {
+                setShowDatePicker(false);
+                void saveSelectedDay(date);
+              }}
+            />
+          }>
+          <DateTimePicker
             value={date}
             mode="date"
-            display="default"
+            display="inline"
             onChange={onDateChange}
-            />
-            {Platform.OS === 'ios' && (
-                <TouchableOpacity
-                  disabled={isAddingDay}
-                  onPress={() => {
-                    setShowDatePicker(false);
-                    void saveSelectedDay(date);
-                  }}
-                  style={styles.iosDatePickerDone}>
-                    <ThemedText style={{color: tintColor}}>Done</ThemedText>
-                </TouchableOpacity>
-            )}
-        </View>
-        )}
+            themeVariant={scheme}
+            accentColor={accent}
+          />
+        </Sheet>
+      )}
     </ThemedView>
+  );
+}
+
+function MacroText({ color, label, value }: { color: string; label: string; value: number }) {
+  return (
+    <View style={styles.macro}>
+      <View style={[styles.macroDot, { backgroundColor: color }]} />
+      <ThemedText type="caption" tone="muted">
+        {label} {value}g
+      </ThemedText>
+    </View>
   );
 }
 
@@ -294,103 +315,68 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   listContent: {
-    padding: 16,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
-  chartContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 10,
+  headerContent: {
+    gap: 12,
   },
-  noDataContainer: {
-    height: DEFAULT_CHART_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  metricToggle: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    gap: 8,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  metricButton: {
+  chartCard: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+    gap: 8,
   },
-  metricText: {
-    fontSize: 12,
-    fontWeight: '600',
+  chart: {
+    marginTop: 8,
+    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
   },
-  sectionTitle: {
-    marginLeft: 16,
-    marginBottom: 8,
+  listHeader: {
+    marginTop: 16,
+    marginBottom: 4,
   },
   listItem: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  itemHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150,150,150,0.2)',
-    paddingBottom: 8,
+    gap: 12,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingRight: 8,
   },
-  dateContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-  },
-  dateText: {
-      fontSize: 16,
-  },
-  statsContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-  },
-  statItem: {
-      alignItems: 'center',
-  },
-  statLabel: {
-      fontSize: 12,
-      opacity: 0.7,
-      marginBottom: 2,
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  fab: {
-    position: 'absolute',
-    width: 56,
+  dateBadge: {
+    width: 52,
     height: 56,
+    borderRadius: Radii.control,
     alignItems: 'center',
     justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    gap: 2,
   },
-  iosDatePickerDone: {
-    alignItems: 'flex-end',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
+  dateDay: {
+    fontFamily: Fonts?.displayBold,
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  itemMain: {
+    flex: 1,
+    gap: 4,
+  },
+  macroRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 12,
+    rowGap: 2,
+  },
+  macro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  macroDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
 });

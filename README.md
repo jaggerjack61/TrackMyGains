@@ -54,44 +54,46 @@ TrackMyGains/
 │  └─ track-cycle/           # Cycles and compounds
 ├─ components/               # Reusable UI and themed components
 │  ├─ DashboardCard.tsx
-│  ├─ parallax-scroll-view.tsx
+│  ├─ Header.tsx            # Screen header, avatar, profile sheet
+│  ├─ ui/                   # Design-system components
 │  ├─ themed-text.tsx
 │  └─ themed-view.tsx
 ├─ hooks/                    # Theme utilities and color scheme
 │  ├─ use-color-scheme.ts
+│  ├─ use-theme.ts
 │  └─ use-theme-color.ts
 ├─ services/                 # Data access (SQLite adapters)
 │  ├─ database.native.ts
 │  └─ database.web.ts
 ├─ constants/
-│  └─ theme.ts               # Centralized light/dark color palette
+│  └─ theme.ts               # Design tokens (colors, accents, radii, elevation)
 └─ app.json                  # Expo config
 ```
 
 ## Theming Guide
 
-The app uses a centralized color system in [`constants/theme.ts`](constants/theme.ts). Core tokens include:
+Design tokens live in [`constants/theme.ts`](constants/theme.ts):
 
-- `background`, `surface`, `card`, `text`, `mutedText`, `tint`, `border`
+- `Colors` — semantic light/dark palette (`background`, `card`, `cardMuted`, `border`, `text`, `mutedText`, `subtleText`, `tint`, `onTint`, `danger`, …)
+- `Accents` — one identity colour per section: `weight`, `lifts`, `diet`, `cycle`
+- `Macros` — protein / carbs / fats colours used by the diet screens
+- `Radii`, `Spacing`, `getElevation()` — shape and depth
+- `withAlpha()`, `readableTextOn()` — colour helpers
 
-Helpers:
+Read them in components with `useTheme()` (returns `{ scheme, colors, accents, macros }`).
 
-- `ThemedView` automatically applies the theme’s `background`.
-- `ThemedText` automatically applies the theme’s `text`.
-- `useThemeColor` lets you pull specific tokens inside components.
+Shared UI lives in [`components/ui/`](components/ui/): `Card`, `Button`, `IconButton`, `Fab`, `Sheet` (bottom sheet used for every add/edit form), `TextField`, `DateField`, `SegmentedControl`, `ListRow`, `Stat`, `SectionHeader`, `EmptyState`, `IconBadge`, and `buildLineChartConfig()` for charts. `ThemedText` supports `type` (`title`, `heading`, `display`, `caption`, `overline`, …) and `tone` (`muted`, `subtle`, `tint`, `danger`, …).
 
 Tips:
 
-- For full‑screen or section backgrounds, use `ThemedView`.
-- For transparent wrappers inside a section (e.g., small layout containers), prefer `View` to avoid unintended grey backgrounds.
-- Hero/header areas use `ParallaxScrollView`, which sets a header color and a content container styled like a carded surface.
+- Screens start with `ThemedView` + `Header` (large title, optional `eyebrow` tinted with the section accent).
+- Pass the section accent (`accents.lifts`, etc.) to `Fab`, `Button color`, charts and icon badges so each area keeps its identity.
 
 ## Features
 
-- Dashboard landing page with quick‑action cards
+- Home dashboard with a latest weigh-in summary and section cards
 - Track weight, workouts, diet, and cycles
-- Light/Dark mode with polished shadows and elevation
-- Parallax header experience
+- Light/Dark mode with a shared design system
 - SQLite persistence via `expo-sqlite`
 - Syncing: Firebase Firestore
 
@@ -118,7 +120,7 @@ Starts an EAS Android build and prints the Build ID to stdout.
 npm run build-apk
 
 # Custom profile
-npm run build-apk -- -Profile "production"
+npm run build-apk -- --profile "production"
 ```
 
 ### Download APK (Polls & Downloads)
@@ -127,24 +129,30 @@ Polls an EAS build every 5 minutes and downloads the APK once finished.
 
 ```bash
 # Basic usage (uses default output path)
-npm run download-apk -- -BuildId "<your-build-id>"
+npm run download-apk -- --build-id "<your-build-id>"
 
 # Specify output path
-npm run download-apk -- -BuildId "<your-build-id>" -OutputPath ".\releases\TrackMyGains-preview-20260731.apk"
+npm run download-apk -- --build-id "<your-build-id>" --output-path "releases/TrackMyGains-preview-20260731.apk"
 
 # Change poll interval (default: 5 minutes)
-npm run download-apk -- -BuildId "<your-build-id>" -PollIntervalMinutes 2
+npm run download-apk -- --build-id "<your-build-id>" --poll-interval-minutes 2
 ```
 
 ### Full Pipeline (Build + Download)
 
-```powershell
-# PowerShell: build then auto-download
-$buildId = npm run build-apk --silent
-npm run download-apk -- -BuildId $buildId
+```bash
+# Linux and macOS
+build_id=$(npm run build-apk --silent)
+npm run download-apk -- --build-id "$build_id"
 ```
 
-**Note:** Always use `--` before script arguments when running via `npm run` so npm forwards them correctly to the PowerShell scripts.
+```powershell
+# Windows PowerShell
+$buildId = npm run build-apk --silent
+npm run download-apk -- --build-id $buildId
+```
+
+The scripts run on Windows, Linux, and macOS with Node.js. Always use `--` before script arguments so npm forwards them correctly.
 
 ### APK Naming Convention
 

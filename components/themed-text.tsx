@@ -1,38 +1,47 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+
+export type TextTone = 'default' | 'muted' | 'subtle' | 'tint' | 'danger' | 'success';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  tone?: TextTone;
+  type?:
+    | 'default'
+    | 'defaultSemiBold'
+    | 'title'
+    | 'subtitle'
+    | 'heading'
+    | 'display'
+    | 'caption'
+    | 'overline'
+    | 'link';
 };
 
 export function ThemedText({
   style,
   lightColor,
   darkColor,
+  tone = 'default',
   type = 'default',
   ...rest
 }: ThemedTextProps) {
-  const defaultColor = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
-  const linkColor = useThemeColor({ light: lightColor, dark: darkColor }, 'tint');
+  const { scheme, colors } = useTheme();
+  const toneColors: Record<TextTone, string> = {
+    default: colors.text,
+    muted: colors.mutedText,
+    subtle: colors.subtleText,
+    tint: colors.tint,
+    danger: colors.danger,
+    success: colors.success,
+  };
+  const overrideColor = scheme === 'dark' ? darkColor : lightColor;
+  const color = overrideColor ?? (type === 'link' ? colors.tint : toneColors[tone]);
 
-  return (
-    <Text
-      style={[
-        { color: type === 'link' ? linkColor : defaultColor },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+  return <Text style={[{ color }, styles[type], style]} {...rest} />;
 }
 
 const styles = StyleSheet.create({
@@ -44,23 +53,47 @@ const styles = StyleSheet.create({
   defaultSemiBold: {
     fontSize: 16,
     lineHeight: 22,
-    fontFamily: Fonts?.sansMedium,
+    fontFamily: Fonts?.sansBold,
+  },
+  display: {
+    fontSize: 40,
+    lineHeight: 46,
+    fontFamily: Fonts?.display,
+    letterSpacing: -1.2,
   },
   title: {
-    fontSize: 34,
+    fontSize: 30,
+    lineHeight: 36,
     fontFamily: Fonts?.display,
-    lineHeight: 40,
-    letterSpacing: -0.7,
+    letterSpacing: -0.8,
+  },
+  heading: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontFamily: Fonts?.displayBold,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 20,
-    fontFamily: Fonts?.displayBold,
     lineHeight: 26,
+    fontFamily: Fonts?.displayBold,
     letterSpacing: -0.3,
+  },
+  caption: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: Fonts?.sans,
+  },
+  overline: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: Fonts?.sansBold,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
   },
   link: {
     lineHeight: 22,
     fontSize: 16,
-    fontFamily: Fonts?.sansMedium,
+    fontFamily: Fonts?.sansBold,
   },
 });

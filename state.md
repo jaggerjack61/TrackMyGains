@@ -1,12 +1,13 @@
 # Project State
 
-- Date: 2026-07-31
+- Date: 2026-09-28
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
-- Current focus: Sync correctness/performance and cycle calculation robustness
+- Current focus: UI modernization (design system) on top of sync/cycle robustness work
 
 ## Stack + Architecture Snapshot
 - UI: React Native + Expo Router, TypeScript, StyleSheet (no Tailwind)
-- Theming: centralized tokens in `constants/theme.ts`
+- Theming: tokens in `constants/theme.ts` (Colors, Accents, Macros, Radii, getElevation) read via `hooks/use-theme.ts`
+- UI kit: `components/ui/` (Card, Button/IconButton, Fab, Sheet, TextField, DateField, SegmentedControl, ListRow, Stat, EmptyState, chart-theme)
 - Auth: Firebase Auth, root layout owns the auth state guard
 - Persistence: SQLite via `expo-sqlite` + Firestore sync
 - Updater: Android-only, checks `main` branch root for `TrackMyGains-preview-YYYYMMDD.apk`
@@ -67,3 +68,13 @@
 - New DB APIs: `restoreSyncConflict` (native + web, returns false on FK failure e.g. deleted parent) and `deleteSyncConflict`; both declared in database.d.ts.
 - Settings uses `useSyncRefresh` so the list appears/updates after any sync completes.
 - New web tests: restore re-queues upsert + bumps timestamp; dismiss leaves the winning record untouched. 111 tests pass; lint + tsc clean.
+
+## 2026-09-28 UI Modernization Pass
+- Replaced neumorphic look (deleted `soft-ui.tsx`, `neumorphism.ts`, `parallax-scroll-view.tsx`, `icon-symbol*`) with flat cards, hairline borders, soft light-mode shadows, new light/dark palettes.
+- Section accents: weight sky, lifts orange, diet green, cycle pink — used for header eyebrow, FAB, charts, icon badges, primary buttons.
+- All add/edit modals are bottom `Sheet`s; all date inputs use `DateField` (Android dialog, iOS inline calendar). Diet "add day" keeps direct Android dialog; iOS uses a sheet.
+- Home: greeting + avatar (opens profile sheet) + latest weigh-in hero + 2x2 section cards. Settings: grouped Account/Data rows, conflicts cards, version footer (no drawer).
+- New screen polish: weight summary + per-entry deltas; exercise best/last/sessions + prediction banner; diet macro split bar; cycle status chips, progress bars, duration/frequency presets, compound search.
+- Behavior changes: cycle delete and compound removal now confirm; add-cycle validates dates and shifting start date keeps duration.
+- Chart inset constant now accounts for chart cards (`DEFAULT_CHART_HORIZONTAL_INSET = 58`).
+- Verified: tsc, lint, 111 tests, web static export. Not yet visually verified on a device.

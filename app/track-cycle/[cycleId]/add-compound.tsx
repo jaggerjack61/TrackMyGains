@@ -1,19 +1,38 @@
-import { Header } from '@/components/Header';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, SectionList, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, SectionList, StyleSheet, View } from 'react-native';
 
+import { FormScreen } from '@/components/cycle/form-screen';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { DateField } from '@/components/ui/date-field';
+import { IconBadge } from '@/components/ui/icon-badge';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Sheet } from '@/components/ui/sheet';
+import { TextField } from '@/components/ui/text-field';
+import { Fonts, Radii, withAlpha } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { addCycleCompound, Compound, getCompounds } from '@/services/database';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+
+const FREQUENCY_PRESETS = [
+  { days: '1', label: 'Daily' },
+  { days: '2', label: 'EOD' },
+  { days: '3', label: 'E3D' },
+  { days: '7', label: 'Weekly' },
+];
+
+const COMPOUND_ICONS: Record<Compound['type'], 'needle' | 'pill' | 'test-tube'> = {
+  injectable: 'needle',
+  oral: 'pill',
+  peptide: 'test-tube',
+};
 
 export default function AddCompoundScreen() {
   const { cycleId } = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [selectedCompound, setSelectedCompound] = useState<Compound | null>(null);
   const [amount, setAmount] = useState('');
@@ -21,19 +40,21 @@ export default function AddCompoundScreen() {
   const [dosingPeriod, setDosingPeriod] = useState('7'); // Default weekly
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 84)));
-  
-  const [showCompoundModal, setShowCompoundModal] = useState(false);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
-  const iconColor = useThemeColor({}, 'icon');
-  const backgroundColor = useThemeColor({}, 'background');
+  const [showCompoundModal, setShowCompoundModal] = useState(false);
+
+  const { colors, accents } = useTheme();
+  const accent = accents.cycle;
 
   useEffect(() => {
     getCompounds().then(setCompounds);
   }, []);
+
+  const filteredCompounds = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? compounds.filter(c => c.name.toLowerCase().includes(query)) : compounds;
+  }, [compounds, search]);
 
   const compoundSections = useMemo(() => {
     const groupOrder: { type: Compound['type']; title: string }[] = [
@@ -45,29 +66,29 @@ export default function AddCompoundScreen() {
     return groupOrder
       .map(group => ({
         title: group.title,
-        data: compounds.filter(c => c.type === group.type),
+        data: filteredCompounds.filter(c => c.type === group.type),
       }))
       .filter(section => section.data.length > 0);
-  }, [compounds]);
+  }, [filteredCompounds]);
 
   const handleSave = async () => {
     const parsedAmount = Number(amount);
     const parsedDosingPeriod = Number(dosingPeriod);
 
     if (!selectedCompound) {
-      alert('Please select a compound');
+      Alert.alert('Missing compound', 'Please select a compound');
       return;
     }
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert('Please enter a valid amount');
+      Alert.alert('Invalid amount', 'Please enter a valid amount');
       return;
     }
     if (!Number.isInteger(parsedDosingPeriod) || parsedDosingPeriod < 1) {
-      alert('Dosing period must be a whole number of days');
+      Alert.alert('Invalid frequency', 'Dosing period must be a whole number of days');
       return;
     }
     if (startDate > endDate) {
-      alert('End date must be on or after the start date');
+      Alert.alert('Invalid dates', 'End date must be on or after the start date');
       return;
     }
 
@@ -84,259 +105,228 @@ export default function AddCompoundScreen() {
     router.back();
   };
 
-  const renderCompoundItem = ({ item }: { item: Compound }) => (
-    <TouchableOpacity
-      style={styles.compoundItem}
-      onPress={() => {
-        setSelectedCompound(item);
-        setShowCompoundModal(false);
-        // Set default unit based on type
-        if (item.type === 'peptide') setAmountUnit('mcg');
-        else if (item.name.includes('HGH') || item.name.includes('HCG')) setAmountUnit('iu');
-        else setAmountUnit('mg');
-      }}
-    >
-      <ThemedText>{item.name}</ThemedText>
-      <ThemedText style={{ opacity: 0.6, fontSize: 12 }}>{item.type}</ThemedText>
-    </TouchableOpacity>
-  );
+  const selectCompound = (item: Compound) => {
+    setSelectedCompound(item);
+    setShowCompoundModal(false);
+    setSearch('');
+    // Set default unit based on type
+    if (item.type === 'peptide') setAmountUnit('mcg');
+    else if (item.name.includes('HGH') || item.name.includes('HCG')) setAmountUnit('iu');
+    else setAmountUnit('mg');
+  };
+
+  const renderCompoundItem = ({ item }: { item: Compound }) => {
+    const isSelected = selectedCompound?.id === item.id;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelected }}
+        style={({ pressed }) => [
+          styles.compoundItem,
+          { borderBottomColor: colors.border },
+          pressed && { backgroundColor: colors.cardMuted },
+        ]}
+        onPress={() => selectCompound(item)}
+      >
+        <IconBadge icon={COMPOUND_ICONS[item.type]} color={accent} size={36} />
+        <ThemedText style={styles.compoundName}>{item.name}</ThemedText>
+        {isSelected && <MaterialCommunityIcons name="check" size={20} color={accent} />}
+      </Pressable>
+    );
+  };
 
   return (
-    <ThemedView style={styles.container}>
-      <Header title="Add Compound" />
-
-      <View style={styles.form}>
-        {/* Compound Selector */}
-        <View style={styles.inputGroup}>
-          <ThemedText type="subtitle">Compound</ThemedText>
-          <TouchableOpacity
-            style={[styles.selectorButton, { borderColor: iconColor }]}
+    <FormScreen
+      eyebrow="Cycle"
+      title="Add compound"
+      accent={accent}
+      footer={<Button label="Add to cycle" size="lg" color={accent} onPress={handleSave} />}>
+      <Card style={styles.card}>
+        <View style={styles.field}>
+          <ThemedText type="caption" tone="muted" style={styles.fieldLabel}>Compound</ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={selectedCompound ? `Compound: ${selectedCompound.name}` : 'Select compound'}
+            style={({ pressed }) => [styles.selector, { backgroundColor: colors.cardMuted }, pressed && styles.pressed]}
             onPress={() => setShowCompoundModal(true)}
           >
-            <ThemedText>{selectedCompound ? selectedCompound.name : 'Select Compound'}</ThemedText>
-            <MaterialCommunityIcons name="chevron-down" size={24} color={iconColor} />
-          </TouchableOpacity>
+            {selectedCompound ? (
+              <>
+                <IconBadge icon={COMPOUND_ICONS[selectedCompound.type]} color={accent} size={32} />
+                <View style={styles.selectorText}>
+                  <ThemedText type="defaultSemiBold">{selectedCompound.name}</ThemedText>
+                  <ThemedText type="caption" tone="muted" style={styles.capitalize}>{selectedCompound.type}</ThemedText>
+                </View>
+              </>
+            ) : (
+              <ThemedText tone="subtle" style={styles.selectorText}>Select a compound</ThemedText>
+            )}
+            <MaterialCommunityIcons name="chevron-down" size={22} color={colors.subtleText} />
+          </Pressable>
         </View>
+      </Card>
 
-        {/* Amount & Unit */}
+      <Card style={styles.card}>
         <View style={styles.row}>
-          <View style={[styles.inputGroup, { flex: 2 }]}>
-            <ThemedText type="subtitle">Amount</ThemedText>
-            <TextInput
-              style={[styles.input, { color: textColor, borderColor: iconColor }]}
-              placeholder="e.g. 250"
-              placeholderTextColor="#999"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
+          <TextField
+            label="Amount"
+            containerStyle={styles.flex}
+            placeholder="e.g. 250"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+          />
+          <View style={styles.unitColumn}>
+            <ThemedText type="caption" tone="muted" style={styles.fieldLabel}>Unit</ThemedText>
+            <SegmentedControl
+              options={[
+                { value: 'mg', label: 'mg' },
+                { value: 'iu', label: 'iu' },
+                { value: 'mcg', label: 'mcg' },
+              ]}
+              value={amountUnit}
+              onChange={setAmountUnit}
             />
           </View>
-          <View style={[styles.inputGroup, { flex: 1 }]}>
-            <ThemedText type="subtitle">Unit</ThemedText>
-            <View style={styles.unitContainer}>
-              {(['mg', 'iu', 'mcg'] as const).map((u) => (
-                <TouchableOpacity
-                  key={u}
+        </View>
+
+        <View style={styles.field}>
+          <TextField
+            label="Dose every"
+            suffix="days"
+            value={dosingPeriod}
+            onChangeText={setDosingPeriod}
+            keyboardType="number-pad"
+          />
+          <View style={styles.presets}>
+            {FREQUENCY_PRESETS.map(preset => {
+              const isSelected = dosingPeriod === preset.days;
+              return (
+                <Pressable
+                  key={preset.days}
+                  onPress={() => setDosingPeriod(preset.days)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
                   style={[
-                    styles.unitButton,
-                    amountUnit === u && { backgroundColor: tintColor },
-                    { borderColor: iconColor }
-                  ]}
-                  onPress={() => setAmountUnit(u)}
-                >
-                  <ThemedText style={[styles.unitText, amountUnit === u && { color: 'white' }]}>
-                    {u}
+                    styles.preset,
+                    { backgroundColor: isSelected ? withAlpha(accent, 0.14) : colors.cardMuted },
+                    isSelected && { borderColor: accent },
+                  ]}>
+                  <ThemedText type="caption" style={[styles.presetText, { color: isSelected ? accent : colors.text }]}>
+                    {preset.label}
                   </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
+      </Card>
 
-        {/* Dosing Period */}
-        <View style={styles.inputGroup}>
-          <ThemedText type="subtitle">Dosing Frequency (Days)</ThemedText>
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, { flex: 1, color: textColor, borderColor: iconColor }]}
-              value={dosingPeriod}
-              onChangeText={setDosingPeriod}
-              keyboardType="numeric"
-            />
-            <ThemedText style={{ alignSelf: 'center', marginLeft: 8 }}>days</ThemedText>
-          </View>
-          <ThemedText style={styles.hint}>e.g., 1 = Daily, 2 = EOD, 7 = Weekly</ThemedText>
-        </View>
+      <Card style={styles.card}>
+        <DateField label="Start date" value={startDate} onChange={setStartDate} />
+        <DateField label="End date" value={endDate} onChange={setEndDate} minimumDate={startDate} />
+      </Card>
 
-        {/* Dates */}
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, { flex: 1 }]}>
-            <ThemedText type="subtitle">Start</ThemedText>
-            <TouchableOpacity
-              style={[styles.dateButton, { borderColor: iconColor }]}
-              onPress={() => setShowStartPicker(true)}
-            >
-              <ThemedText>{startDate.toLocaleDateString()}</ThemedText>
-            </TouchableOpacity>
-            {showStartPicker && (
-              <DateTimePicker
-                value={startDate}
-                mode="date"
-                display="default"
-                onChange={(e, date) => {
-                  setShowStartPicker(Platform.OS === 'ios');
-                  if (date) setStartDate(date);
-                }}
-              />
-            )}
-          </View>
-          <View style={[styles.inputGroup, { flex: 1 }]}>
-            <ThemedText type="subtitle">End</ThemedText>
-            <TouchableOpacity
-              style={[styles.dateButton, { borderColor: iconColor }]}
-              onPress={() => setShowEndPicker(true)}
-            >
-              <ThemedText>{endDate.toLocaleDateString()}</ThemedText>
-            </TouchableOpacity>
-            {showEndPicker && (
-              <DateTimePicker
-                value={endDate}
-                mode="date"
-                display="default"
-                onChange={(e, date) => {
-                  setShowEndPicker(Platform.OS === 'ios');
-                  if (date) setEndDate(date);
-                }}
-                minimumDate={startDate}
-              />
-            )}
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: tintColor }]}
-          onPress={handleSave}
-        >
-          <ThemedText style={styles.saveButtonText}>Add to Cycle</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      <Modal visible={showCompoundModal} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText type="title">Select Compound</ThemedText>
-              <TouchableOpacity onPress={() => setShowCompoundModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={textColor} />
-              </TouchableOpacity>
-            </View>
-            <SectionList
-              sections={compoundSections}
-              renderItem={renderCompoundItem}
-              keyExtractor={(item) => item.id.toString()}
-              renderSectionHeader={({ section }) => (
-                <ThemedText type="subtitle" style={[styles.groupHeader, { color: textColor }]}>
-                  {section.title}
-                </ThemedText>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-    </ThemedView>
+      <Sheet
+        visible={showCompoundModal}
+        onClose={() => setShowCompoundModal(false)}
+        title="Select compound"
+        scrollable={false}
+        heightRatio={0.8}
+      >
+        <TextField icon="magnify" placeholder="Search compounds" value={search} onChangeText={setSearch} autoCorrect={false} />
+        <SectionList
+          sections={compoundSections}
+          renderItem={renderCompoundItem}
+          keyExtractor={(item) => item.id.toString()}
+          keyboardShouldPersistTaps="handled"
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) => (
+            <ThemedText type="overline" tone="subtle" style={styles.groupHeader}>
+              {section.title}
+            </ThemedText>
+          )}
+          ListEmptyComponent={
+            <ThemedText tone="muted" style={styles.noResults}>No compounds match “{search}”</ThemedText>
+          }
+        />
+      </Sheet>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
   },
-  form: {
-    padding: 24,
-    gap: 24,
+  card: {
+    gap: 16,
   },
-  inputGroup: {
+  field: {
     gap: 8,
+  },
+  fieldLabel: {
+    fontFamily: Fonts?.sansMedium,
+  },
+  selector: {
+    minHeight: 56,
+    borderRadius: Radii.control,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  selectorText: {
+    flex: 1,
+    paddingLeft: 2,
+  },
+  capitalize: {
+    textTransform: 'capitalize',
+  },
+  pressed: {
+    opacity: 0.8,
   },
   row: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'flex-end',
+    gap: 12,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+  unitColumn: {
+    width: 150,
+    gap: 6,
   },
-  selectorButton: {
+  presets: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    gap: 8,
   },
-  dateButton: {
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-  },
-  unitContainer: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  unitButton: {
+  preset: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 8,
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: Radii.inner,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  unitText: {
-    fontSize: 12,
-  },
-  hint: {
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  saveButton: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    height: '70%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+  presetText: {
+    fontFamily: Fonts?.sansBold,
   },
   compoundItem: {
-    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+  },
+  compoundName: {
+    flex: 1,
   },
   groupHeader: {
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 6,
-    opacity: 0.9,
+  },
+  noResults: {
+    textAlign: 'center',
+    paddingVertical: 24,
   },
 });

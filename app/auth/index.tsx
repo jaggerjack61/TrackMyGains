@@ -1,15 +1,17 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { FirebaseError } from 'firebase/app';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { SoftButton, SoftSurface } from '@/components/ui/soft-ui';
-import { FocusRing } from '@/constants/neumorphism';
-import { Radii } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { TextField } from '@/components/ui/text-field';
+import { getElevation, readableTextOn } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { getFirebaseAuth } from '@/services/firebase';
 
 type AuthMode = 'login' | 'register';
@@ -19,19 +21,17 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [focusedField, setFocusedField] = useState<'email' | 'password' | 'confirm' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInput>(null);
 
-  const theme = useColorScheme() ?? 'light';
-  const primaryColor = useThemeColor({}, 'tint');
-  const cardColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const mutedTextColor = useThemeColor({}, 'mutedText');
+  const insets = useSafeAreaInsets();
+  const { scheme, colors } = useTheme();
 
-  const titleText = mode === 'login' ? 'Welcome back' : 'Create an account';
-  const subtitleText = mode === 'login' ? 'Login to continue' : 'Register to start tracking';
-  const actionLabel = mode === 'login' ? 'Login' : 'Create Account';
-  const isDisabled = isSubmitting;
+  const titleText = mode === 'login' ? 'Welcome back' : 'Create your account';
+  const subtitleText = mode === 'login' ? 'Log in to keep tracking your progress.' : 'Start logging lifts, meals and more.';
+  const actionLabel = mode === 'login' ? 'Log in' : 'Create account';
 
   const getAuthErrorMessage = (error: unknown) => {
     if (error instanceof FirebaseError) {
@@ -55,6 +55,7 @@ export default function AuthScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!email.trim() || !password.trim()) {
       Alert.alert('Missing info', 'Email and password are required.');
       return;
@@ -80,114 +81,109 @@ export default function AuthScreen() {
     }
   };
 
-  const inputStyle = useMemo(
-    () => [
-      styles.input,
-      {
-        backgroundColor: cardColor,
-        color: textColor,
-      },
-    ],
-    [cardColor, textColor]
-  );
-
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>
-          {titleText}
-        </ThemedText>
-        <ThemedText style={[styles.subtitle, { color: mutedTextColor }]}>
-          {subtitleText}
-        </ThemedText>
-      </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.brand}>
+            <View style={[styles.logo, { backgroundColor: colors.tint }, getElevation(scheme, 3, colors.tint)]}>
+              <MaterialCommunityIcons name="dumbbell" size={30} color={readableTextOn(colors.tint)} />
+            </View>
+            <ThemedText type="overline" tone="subtle">
+              Track My Gains
+            </ThemedText>
+          </View>
 
-      <SoftSurface depth="extruded" radius={Radii.container} contentStyle={styles.segment}>
-        <SoftButton
-          onPress={() => setMode('login')}
-          depth={mode === 'login' ? 'pressed' : 'extrudedSmall'}
-          activeDepth="pressedSmall"
-          style={styles.segmentButton}
-          contentStyle={styles.segmentButtonContent}>
-          <ThemedText type="defaultSemiBold">Login</ThemedText>
-        </SoftButton>
-        <SoftButton
-          onPress={() => setMode('register')}
-          depth={mode === 'register' ? 'pressed' : 'extrudedSmall'}
-          activeDepth="pressedSmall"
-          style={styles.segmentButton}
-          contentStyle={styles.segmentButtonContent}>
-          <ThemedText type="defaultSemiBold">Register</ThemedText>
-        </SoftButton>
-      </SoftSurface>
+          <View style={styles.header}>
+            <ThemedText type="title">{titleText}</ThemedText>
+            <ThemedText tone="muted">{subtitleText}</ThemedText>
+          </View>
 
-      <View style={styles.form}>
-        <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'email' ? FocusRing[theme] : undefined}>
-          <TextInput
-            style={inputStyle}
-            placeholder="Email"
-            placeholderTextColor={mutedTextColor}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            value={email}
-            onFocus={() => setFocusedField('email')}
-            onBlur={() => setFocusedField(null)}
-            onChangeText={setEmail}
+          <SegmentedControl
+            options={[
+              { value: 'login', label: 'Log in' },
+              { value: 'register', label: 'Register' },
+            ]}
+            value={mode}
+            onChange={setMode}
           />
-        </SoftSurface>
-        <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'password' ? FocusRing[theme] : undefined}>
-          <TextInput
-            style={inputStyle}
-            placeholder="Password"
-            placeholderTextColor={mutedTextColor}
-            secureTextEntry
-            textContentType="password"
-            value={password}
-            onFocus={() => setFocusedField('password')}
-            onBlur={() => setFocusedField(null)}
-            onChangeText={setPassword}
-          />
-        </SoftSurface>
-        {mode === 'register' ? (
-          <SoftSurface depth="pressedDeep" radius={Radii.control} contentStyle={styles.inputWell} style={focusedField === 'confirm' ? FocusRing[theme] : undefined}>
-            <TextInput
-              style={inputStyle}
-              placeholder="Confirm password"
-              placeholderTextColor={mutedTextColor}
-              secureTextEntry
-              textContentType="password"
-              value={confirmPassword}
-              onFocus={() => setFocusedField('confirm')}
-              onBlur={() => setFocusedField(null)}
-              onChangeText={setConfirmPassword}
+
+          <View style={styles.form}>
+            <TextField
+              label="Email"
+              icon="email-outline"
+              placeholder="you@example.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
+              returnKeyType="next"
+              value={email}
+              onChangeText={setEmail}
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
-          </SoftSurface>
-        ) : null}
-      </View>
+            <View>
+              <TextField
+                ref={passwordRef}
+                label="Password"
+                icon="lock-outline"
+                placeholder="At least 6 characters"
+                secureTextEntry={!isPasswordVisible}
+                textContentType="password"
+                returnKeyType={mode === 'register' ? 'next' : 'go'}
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={() => (mode === 'register' ? confirmRef.current?.focus() : handleSubmit())}
+                inputStyle={styles.passwordInput}
+              />
+              <Pressable
+                onPress={() => setIsPasswordVisible((visible) => !visible)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
+                style={styles.visibilityToggle}>
+                <MaterialCommunityIcons
+                  name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={colors.subtleText}
+                />
+              </Pressable>
+            </View>
+            {mode === 'register' ? (
+              <TextField
+                ref={confirmRef}
+                label="Confirm password"
+                icon="lock-check-outline"
+                placeholder="Repeat your password"
+                secureTextEntry={!isPasswordVisible}
+                textContentType="password"
+                returnKeyType="go"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                onSubmitEditing={handleSubmit}
+              />
+            ) : null}
+          </View>
 
-      <SoftButton
-        onPress={handleSubmit}
-        disabled={isDisabled}
-        depth="extruded"
-        activeDepth="pressed"
-        style={isDisabled && styles.disabledButton}
-        contentStyle={[styles.primaryButton, { backgroundColor: primaryColor }]}
-      >
-        <ThemedText type="defaultSemiBold" style={styles.primaryButtonText}>
-          {isSubmitting ? 'Please wait...' : actionLabel}
-        </ThemedText>
-      </SoftButton>
+          <Button label={actionLabel} size="lg" loading={isSubmitting} onPress={handleSubmit} />
 
-      <Pressable
-        style={styles.switchMode}
-        onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
-      >
-        <ThemedText type="link">
-          {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Login'}
-        </ThemedText>
-      </Pressable>
+          <Pressable
+            style={styles.switchMode}
+            onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
+            accessibilityRole="button">
+            <ThemedText type="caption" tone="muted">
+              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <ThemedText type="caption" tone="tint" style={styles.switchModeAction}>
+                {mode === 'login' ? 'Register' : 'Log in'}
+              </ThemedText>
+            </ThemedText>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
@@ -195,56 +191,44 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 72,
-    paddingBottom: 32,
     gap: 24,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  brand: {
+    gap: 14,
+  },
+  logo: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
-    gap: 8,
-  },
-  title: {
-    fontSize: 32,
-  },
-  subtitle: {
-    fontSize: 16,
-  },
-  segment: {
-    flexDirection: 'row',
-    borderRadius: Radii.container,
-    gap: 10,
-    padding: 10,
-  },
-  segmentButton: {
-    flex: 1,
-  },
-  segmentButtonContent: {
-    minHeight: 46,
+    gap: 6,
   },
   form: {
-    gap: 12,
+    gap: 14,
   },
-  inputWell: {
-    paddingHorizontal: 14,
-    paddingVertical: 4,
+  passwordInput: {
+    paddingRight: 32,
   },
-  input: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  primaryButton: {
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
+  visibilityToggle: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
   },
   switchMode: {
     alignItems: 'center',
+    paddingVertical: 4,
+  },
+  switchModeAction: {
+    fontWeight: '700',
   },
 });

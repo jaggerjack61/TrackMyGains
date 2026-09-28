@@ -1,33 +1,42 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { buildLineChartConfig } from '@/components/ui/chart-theme';
+import { DateField } from '@/components/ui/date-field';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
 import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { SectionHeader } from '@/components/ui/section-header';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Sheet } from '@/components/ui/sheet';
+import { Stat } from '@/components/ui/stat';
+import { TextField } from '@/components/ui/text-field';
 import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
-import { withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Fonts, Radii, withAlpha } from '@/constants/theme';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import { buildScrollableChartLabels, calculateScrollableChartWidth } from '@/services/chart-timeline';
 import { addExerciseLog, deleteExerciseLog, ExerciseLog, getExerciseLogs, updateExerciseLog } from '@/services/database';
 import { predictNextLog, PredictedLog } from '@/services/prediction';
-import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
-    Modal,
-    Platform,
     StyleSheet,
-    TextInput,
-    TouchableOpacity,
     View,
     useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
 type GraphMetric = 'weight' | 'sets' | 'volume';
+
+const LBS_PER_KG = 2.20462;
+const toKg = (log: ExerciseLog) => (log.weight_unit === 'lbs' ? log.weight / LBS_PER_KG : log.weight);
 
 export default function ExerciseDetailScreen() {
   const { width: screenWidth } = useWindowDimensions();
@@ -36,7 +45,7 @@ export default function ExerciseDetailScreen() {
   const { exerciseId, exerciseName } = useLocalSearchParams<{ exerciseId: string; exerciseName: string }>();
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  
+
   // Form State
   const [editingLog, setEditingLog] = useState<ExerciseLog | null>(null);
   const [date, setDate] = useState(new Date());
@@ -44,17 +53,14 @@ export default function ExerciseDetailScreen() {
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
   const [reps, setReps] = useState('');
   const [sets, setSets] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [predicted, setPredicted] = useState<{ weight?: boolean; sets?: boolean; reps?: boolean }>({});
   const [prediction, setPrediction] = useState<PredictedLog | null>(null);
 
   // Graph State
   const [graphMetric, setGraphMetric] = useState<GraphMetric>('weight');
 
-  const cardBackgroundColor = useThemeColor({}, 'card');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
-  const backgroundColor = useThemeColor({}, 'background');
+  const { colors, accents } = useTheme();
+  const accent = accents.lifts;
 
   const loadData = useCallback(async () => {
     if (!exerciseId) return;
@@ -173,14 +179,6 @@ export default function ExerciseDetailScreen() {
     }
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    const currentDate = selectedDate || date;
-    setDate(currentDate);
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-  };
-
   const graphData = useMemo(() => {
     if (logs.length === 0) return null;
     
@@ -210,240 +208,198 @@ export default function ExerciseDetailScreen() {
     };
   }, [chartViewportWidth, graphMetric, logs]);
 
+  const summary = useMemo(() => {
+    if (logs.length === 0) return null;
+    const best = logs.reduce((top, log) => (toKg(log) > toKg(top) ? log : top));
+    const latest = logs.reduce((newest, log) => (new Date(log.date) > new Date(newest.date) ? log : newest));
+    return { best, latest, sessions: logs.length };
+  }, [logs]);
+
+  const hasPrediction = Boolean(predicted.weight || predicted.sets || predicted.reps);
+
+  const openNewLog = () => {
+    resetForm();
+    setModalVisible(true);
+  };
+
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title={exerciseName || 'Exercise Details'} />
+      <Header eyebrow="Exercise" accent={accent} title={exerciseName || 'Exercise Details'} />
 
       <FlatList
         ListHeaderComponent={
-          <View>
-            {/* Graph Section */}
-            <View style={styles.chartContainer}>
-              <View style={styles.metricToggle}>
-                {(['weight', 'sets', 'volume'] as GraphMetric[]).map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[
-                      styles.metricButton,
-                      graphMetric === m && { backgroundColor: tintColor },
-                      { borderColor: tintColor }
-                    ]}
-                    onPress={() => setGraphMetric(m)}
-                  >
-                    <ThemedText style={[
-                      styles.metricText,
-                      graphMetric === m && { color: '#FFF' }
-                    ]}>
-                      {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+          summary ? (
+            <View style={styles.headerContent}>
+              <Card style={styles.summaryCard}>
+                <Stat label="Best" value={summary.best.weight} unit={summary.best.weight_unit} style={styles.flex} />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Stat
+                  label="Last"
+                  value={`${summary.latest.weight}`}
+                  unit={`${summary.latest.weight_unit} × ${summary.latest.reps}`}
+                  style={styles.flex}
+                />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Stat label="Sessions" value={summary.sessions} style={styles.flex} />
+              </Card>
 
-              {graphData ? (
-                <HorizontalChartScrollView
-                  viewportWidth={chartViewportWidth}
-                  contentWidth={graphData.chartWidth}
-                  yAxis={{ labels: graphData.axis.labels, color: textColor }}
-                >
-                  <LineChart
-                    data={{
-                      labels: graphData.labels,
-                      datasets: graphData.datasets
-                    }}
-                    width={graphData.chartWidth}
-                    height={DEFAULT_CHART_HEIGHT}
-                    chartConfig={{
-                      backgroundColor: backgroundColor,
-                      backgroundGradientFrom: backgroundColor,
-                      backgroundGradientTo: backgroundColor,
-                      decimalPlaces: graphData.axis.decimalPlaces,
-                      color: (opacity = 1) => withAlpha(tintColor, opacity),
-                      labelColor: () => textColor,
-                      style: { borderRadius: 16 },
-                      propsForDots: { r: "4", strokeWidth: "2", stroke: tintColor }
-                    }}
-                    bezier
-                    fromNumber={graphData.axis.max}
-                    fromZero={graphData.axis.min === 0}
-                    segments={graphData.axis.segments}
-                    style={{ marginVertical: 8, borderRadius: 16, paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT }}
-                    withHorizontalLabels={false}
-                  />
-                </HorizontalChartScrollView>
-              ) : (
-                <View style={styles.noDataContainer}>
-                  <ThemedText>No data yet</ThemedText>
-                </View>
-              )}
+              <Card style={styles.chartCard}>
+                <SegmentedControl
+                  size="sm"
+                  accent={accent}
+                  options={[
+                    { value: 'weight', label: 'Weight' },
+                    { value: 'sets', label: 'Sets' },
+                    { value: 'volume', label: 'Volume' },
+                  ]}
+                  value={graphMetric}
+                  onChange={setGraphMetric}
+                />
+                {graphData && (
+                  <HorizontalChartScrollView
+                    viewportWidth={chartViewportWidth}
+                    contentWidth={graphData.chartWidth}
+                    yAxis={{ labels: graphData.axis.labels, color: colors.subtleText }}
+                  >
+                    <LineChart
+                      data={{
+                        labels: graphData.labels,
+                        datasets: graphData.datasets
+                      }}
+                      width={graphData.chartWidth}
+                      height={DEFAULT_CHART_HEIGHT}
+                      chartConfig={buildLineChartConfig({ colors, color: accent, decimalPlaces: graphData.axis.decimalPlaces })}
+                      bezier
+                      fromNumber={graphData.axis.max}
+                      fromZero={graphData.axis.min === 0}
+                      segments={graphData.axis.segments}
+                      style={styles.chart}
+                      withHorizontalLabels={false}
+                      withVerticalLines={false}
+                      withOuterLines={false}
+                    />
+                  </HorizontalChartScrollView>
+                )}
+              </Card>
+
+              <SectionHeader title="History" caption="Tap a session to edit it" style={styles.historyHeader} />
             </View>
-            
-            <ThemedText type="subtitle" style={styles.historyTitle}>History</ThemedText>
-          </View>
+          ) : null
         }
         data={logs}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={[styles.logItem, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => handleEdit(item)}
-          >
-            <View style={styles.logHeader}>
-              <ThemedText type="defaultSemiBold">{new Date(item.date).toLocaleDateString()}</ThemedText>
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.logDetails}>
-              <View style={styles.logStat}>
-                <ThemedText style={styles.statLabel}>Weight</ThemedText>
-                <ThemedText type="defaultSemiBold">{item.weight} {item.weight_unit}</ThemedText>
+        renderItem={({ item }) => {
+          const logDate = new Date(item.date);
+          return (
+            <Card style={styles.logItem} onPress={() => handleEdit(item)} accessibilityLabel={`Edit log from ${logDate.toLocaleDateString()}`}>
+              <View style={[styles.dateBadge, { backgroundColor: withAlpha(accent, 0.12) }]}>
+                <ThemedText style={[styles.dateDay, { color: accent }]}>{logDate.getDate()}</ThemedText>
+                <ThemedText type="overline" style={{ color: accent }}>
+                  {logDate.toLocaleDateString(undefined, { month: 'short' })}
+                </ThemedText>
               </View>
-              <View style={styles.logStat}>
-                <ThemedText style={styles.statLabel}>Sets</ThemedText>
-                <ThemedText type="defaultSemiBold">{item.sets}</ThemedText>
+              <View style={styles.logMain}>
+                <ThemedText type="heading">
+                  {item.weight} {item.weight_unit}
+                </ThemedText>
+                <ThemedText type="caption" tone="muted">
+                  {item.sets} sets × {item.reps} reps · {(item.weight * item.sets * item.reps).toFixed(0)} vol
+                </ThemedText>
               </View>
-              <View style={styles.logStat}>
-                <ThemedText style={styles.statLabel}>Reps</ThemedText>
-                <ThemedText type="defaultSemiBold">{item.reps}</ThemedText>
-              </View>
-              <View style={styles.logStat}>
-                <ThemedText style={styles.statLabel}>Volume</ThemedText>
-                <ThemedText type="defaultSemiBold">{(item.weight * item.sets * item.reps).toFixed(0)}</ThemedText>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
+              <IconButton
+                icon="trash-can-outline"
+                color={colors.danger}
+                size={36}
+                onPress={() => handleDelete(item.id)}
+                accessibilityLabel="Delete log"
+              />
+            </Card>
+          );
+        }}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <ThemedText>No logs yet. Add your first workout!</ThemedText>
-          </View>
+          <EmptyState
+            icon="chart-line"
+            accent={accent}
+            title="No sessions logged"
+            message="Log your first set to start tracking strength over time."
+            action={<Button label="Log session" icon="plus" color={accent} onPress={openNewLog} />}
+          />
         }
       />
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: tintColor }]}
-        onPress={() => {
-          resetForm();
-          setModalVisible(true);
-        }}
-      >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
-      </TouchableOpacity>
+      {logs.length > 0 && <Fab label="Log session" color={accent} onPress={openNewLog} />}
 
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <Sheet
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.centeredView}>
-          <View style={[styles.modalView, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>
-              {editingLog ? 'Edit Log' : 'Add Log'}
+        onClose={() => setModalVisible(false)}
+        title={editingLog ? 'Edit session' : 'Log session'}
+        subtitle={exerciseName}
+        footer={
+          <>
+            <Button label="Cancel" variant="secondary" style={styles.flex} onPress={() => setModalVisible(false)} />
+            <Button label="Save" color={accent} style={styles.flex} onPress={handleSaveLog} />
+          </>
+        }>
+        {hasPrediction && (
+          <View style={[styles.predictionBanner, { backgroundColor: withAlpha(accent, 0.12) }]}>
+            <MaterialCommunityIcons name="lightning-bolt" size={16} color={accent} />
+            <ThemedText type="caption" style={[styles.predictionText, { color: accent }]}>
+              Suggested from your recent sessions. Tap a field to change it.
             </ThemedText>
+          </View>
+        )}
 
-            <View style={styles.formRow}>
-              <ThemedText>Date:</ThemedText>
-              <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-                <ThemedText>{date.toLocaleDateString()}</ThemedText>
-              </TouchableOpacity>
-            </View>
+        <DateField label="Date" value={date} onChange={setDate} />
 
-            {showDatePicker && (
-              <View>
-                 <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display="default"
-                  onChange={onDateChange}
-                />
-                 {Platform.OS === 'ios' && (
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.iosDatePickerDone}>
-                      <ThemedText style={{color: tintColor}}>Done</ThemedText>
-                  </TouchableOpacity>
-                 )}
-              </View>
-            )}
-
-            <View style={styles.formRow}>
-              <View style={{flex: 1, marginRight: 8}}>
-                <ThemedText>Weight:</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: predicted.weight ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
-                  onChangeText={setWeight}
-                  onFocus={() => clearIfPredicted('weight')}
-                  value={weight}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              <View style={{width: 80}}>
-                <ThemedText>Unit:</ThemedText>
-                <View style={styles.unitToggle}>
-                  <TouchableOpacity 
-                    style={[styles.unitButton, weightUnit === 'kg' && { backgroundColor: tintColor }]}
-                    onPress={() => handleWeightUnitChange('kg')}
-                  >
-                    <ThemedText style={{color: weightUnit === 'kg' ? '#FFF' : textColor}}>kg</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.unitButton, weightUnit === 'lbs' && { backgroundColor: tintColor }]}
-                    onPress={() => handleWeightUnitChange('lbs')}
-                  >
-                    <ThemedText style={{color: weightUnit === 'lbs' ? '#FFF' : textColor}}>lbs</ThemedText>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.formRow}>
-              <View style={{flex: 1, marginRight: 8}}>
-                <ThemedText>Sets:</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: predicted.sets ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
-                  onChangeText={setSets}
-                  onFocus={() => clearIfPredicted('sets')}
-                  value={sets}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              <View style={{flex: 1}}>
-                <ThemedText>Reps:</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: predicted.reps ? withAlpha(textColor, 0.45) : textColor, borderColor: tintColor }]}
-                  onChangeText={setReps}
-                  onFocus={() => clearIfPredicted('reps')}
-                  value={reps}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonClose]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Cancel</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: tintColor }]}
-                onPress={handleSaveLog}
-              >
-                <ThemedText style={{ color: '#FFF' }}>Save</ThemedText>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.formRow}>
+          <TextField
+            label="Weight"
+            containerStyle={styles.flex}
+            dimmed={predicted.weight}
+            onChangeText={setWeight}
+            onFocus={() => clearIfPredicted('weight')}
+            value={weight}
+            keyboardType="decimal-pad"
+            placeholder="0"
+          />
+          <View style={styles.unitColumn}>
+            <ThemedText type="caption" tone="muted" style={styles.unitLabel}>Unit</ThemedText>
+            <SegmentedControl
+              options={[
+                { value: 'kg', label: 'kg' },
+                { value: 'lbs', label: 'lbs' },
+              ]}
+              value={weightUnit}
+              onChange={handleWeightUnitChange}
+            />
           </View>
         </View>
-      </Modal>
+
+        <View style={styles.formRow}>
+          <TextField
+            label="Sets"
+            containerStyle={styles.flex}
+            dimmed={predicted.sets}
+            onChangeText={setSets}
+            onFocus={() => clearIfPredicted('sets')}
+            value={sets}
+            keyboardType="number-pad"
+            placeholder="0"
+          />
+          <TextField
+            label="Reps"
+            containerStyle={styles.flex}
+            dimmed={predicted.reps}
+            onChangeText={setReps}
+            onFocus={() => clearIfPredicted('reps')}
+            value={reps}
+            keyboardType="number-pad"
+            placeholder="0"
+          />
+        </View>
+      </Sheet>
     </ThemedView>
   );
 }
@@ -452,163 +408,84 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   listContent: {
-    padding: 16,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
-  chartContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 10,
+  headerContent: {
+    gap: 12,
   },
-  noDataContainer: {
-    height: DEFAULT_CHART_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  metricToggle: {
+  summaryCard: {
     flexDirection: 'row',
-    marginBottom: 10,
+    alignItems: 'center',
+    gap: 12,
+  },
+  divider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+  },
+  chartCard: {
+    paddingHorizontal: 12,
     gap: 8,
   },
-  metricButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+  chart: {
+    marginTop: 8,
+    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
   },
-  metricText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  historyTitle: {
-    marginLeft: 16,
-    marginBottom: 8,
+  historyHeader: {
+    marginTop: 16,
+    marginBottom: 4,
   },
   logItem: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  logHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150,150,150,0.2)',
-    paddingBottom: 8,
+    gap: 14,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingRight: 8,
   },
-  logDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  logStat: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginBottom: 2,
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  fab: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
+  dateBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: Radii.control,
     alignItems: 'center',
     justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
-  centeredView: {
+  dateDay: {
+    fontFamily: Fonts?.displayBold,
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  logMain: {
     flex: 1,
-    justifyContent: 'center',
+    gap: 2,
+  },
+  predictionBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    gap: 8,
+    borderRadius: Radii.inner,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  modalView: {
-    margin: 20,
-    borderRadius: 20,
-    padding: 25,
-    width: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
+  predictionText: {
+    flex: 1,
+    fontFamily: Fonts?.sansMedium,
   },
   formRow: {
-    marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  input: {
-    height: 40,
-    marginTop: 5,
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-  },
-  dateButton: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    minWidth: 150,
-    alignItems: 'center',
-  },
-  unitToggle: {
-    flexDirection: 'row',
-    marginTop: 5,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  unitButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  button: {
-    borderRadius: 10,
-    padding: 12,
-    elevation: 2,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  buttonClose: {
-    backgroundColor: '#ddd',
-  },
-  iosDatePickerDone: {
     alignItems: 'flex-end',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
+    gap: 12,
+  },
+  unitColumn: {
+    width: 124,
+    gap: 6,
+  },
+  unitLabel: {
+    fontFamily: Fonts?.sansMedium,
   },
 });

@@ -3,23 +3,34 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Pressable,
+  ActivityIndicator,
+  Alert,
   ScrollView,
   SectionList,
   StyleSheet,
-  TouchableOpacity,
   View,
   type GestureResponderEvent,
   useWindowDimensions,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
+import { formatDateRange, getCycleProgress } from '@/components/cycle/cycle-progress';
+import { CycleProgressBar, CycleStatusChip } from '@/components/cycle/cycle-summary';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Button, IconButton } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { buildLineChartConfig } from '@/components/ui/chart-theme';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Fab } from '@/components/ui/fab';
 import { HorizontalChartScrollView } from '@/components/ui/horizontal-chart-scroll-view';
+import { IconBadge } from '@/components/ui/icon-badge';
+import { SectionHeader } from '@/components/ui/section-header';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { DEFAULT_CHART_HEIGHT, DEFAULT_CHART_HORIZONTAL_INSET, DEFAULT_CHART_SCROLL_PADDING_RIGHT, DEFAULT_CHART_Y_AXIS_WIDTH } from '@/constants/charts';
-import { withAlpha } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Radii } from '@/constants/theme';
+import { useSyncRefresh } from '@/hooks/use-sync-refresh';
+import { useTheme } from '@/hooks/use-theme';
 import { buildChartYAxis, buildYAxisBoundsDataset } from '@/services/chart-axis';
 import {
   buildCycleChartLabels,
@@ -29,11 +40,25 @@ import {
 } from '@/services/cycle-chart';
 import { calculateCycleLevels } from '@/services/cycle-calculations';
 import { Cycle, CycleCompound, deleteCycleCompound, getCycle, getCycleCompounds } from '@/services/database';
-import { useSyncRefresh } from '@/hooks/use-sync-refresh';
 
 type PinchState = {
   startDistance: number;
   startZoom: number;
+};
+
+const LEVEL_FACTORS = [0.25, 0.5, 0.75, 1];
+
+const COMPOUND_ICONS: Record<CycleCompound['type'], 'needle' | 'pill' | 'test-tube'> = {
+  injectable: 'needle',
+  oral: 'pill',
+  peptide: 'test-tube',
+};
+
+const describeFrequency = (days: number) => {
+  if (days === 1) return 'daily';
+  if (days === 2) return 'every other day';
+  if (days === 7) return 'weekly';
+  return `every ${days} days`;
 };
 
 export default function CycleDetailScreen() {
@@ -47,11 +72,9 @@ export default function CycleDetailScreen() {
   const [xZoom, setXZoom] = useState(1);
   const router = useRouter();
   const pinchStateRef = useRef<PinchState | null>(null);
-  
-  const primaryColor = useThemeColor({}, 'tint');
-  const textColor = useThemeColor({}, 'text');
-  const mutedColor = useThemeColor({}, 'tabIconDefault');
-  const cardColor = useThemeColor({}, 'card');
+
+  const { colors, accents } = useTheme();
+  const accent = accents.cycle;
 
   const loadData = useCallback(async () => {
     if (cycleId) {
@@ -131,9 +154,22 @@ export default function CycleDetailScreen() {
       .filter(section => section.data.length > 0);
   }, [compounds]);
 
-  const handleDeleteCompound = async (id: number) => {
-    await deleteCycleCompound(id);
-    loadData();
+  const handleDeleteCompound = (compound: CycleCompound) => {
+    Alert.alert('Remove compound', `Remove ${compound.name} from this cycle?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteCycleCompound(compound.id);
+            loadData();
+          } catch (e: any) {
+            Alert.alert('Error', 'Failed to remove compound: ' + (e.message || e));
+          }
+        },
+      },
+    ]);
   };
 
   const clearPinchState = useCallback(() => {
@@ -174,143 +210,121 @@ export default function CycleDetailScreen() {
     ));
   }, [clearPinchState, xZoom]);
 
-  const renderCompound = ({ item }: { item: CycleCompound }) => (
-    <View style={[styles.card, { backgroundColor: cardColor }]}>
-      <View style={styles.cardContent}>
-        <ThemedText type="subtitle">{item.name}</ThemedText>
-        <View style={styles.detailRow}>
-          <MaterialCommunityIcons name="needle" size={16} color={mutedColor} />
-          <ThemedText style={styles.detailText}>
-            {item.amount}{item.amount_unit} every {item.dosing_period} days
-          </ThemedText>
-        </View>
-        <View style={styles.detailRow}>
-          <MaterialCommunityIcons name="calendar-range" size={16} color={mutedColor} />
-          <ThemedText style={styles.detailText}>
-            {new Date(item.start_date).toLocaleDateString()} - {new Date(item.end_date).toLocaleDateString()}
-          </ThemedText>
-        </View>
-      </View>
-      <TouchableOpacity onPress={() => handleDeleteCompound(item.id)} hitSlop={10}>
-        <MaterialCommunityIcons name="delete-outline" size={24} color="#EF4444" />
-      </TouchableOpacity>
-    </View>
-  );
-  
-  const renderHeader = () => (
-     !cycle ? null : <View>
-        <View style={styles.dateContainer}>
-           <ThemedText style={{ color: mutedColor, textAlign: 'center' }}>
-             {new Date(cycle.start_date).toLocaleDateString()} - {new Date(cycle.end_date).toLocaleDateString()}
-           </ThemedText>
-        </View>
+  const addCompound = () => router.push(`/track-cycle/${cycleId}/add-compound`);
 
-        <View style={styles.sectionHeader}>
-           {chartData && (
-            <View style={[styles.chartContainer, { backgroundColor: cardColor }]}>
-              <ThemedText type="subtitle" style={styles.chartTitle}>Estimated Blood Levels (ng/dL)</ThemedText>
-              <View style={styles.factorRow}>
-                <ThemedText style={[styles.factorLabel, { color: mutedColor }]}>
-                  Level factor: {levelFactor.toFixed(2)}
-                </ThemedText>
-                <View style={styles.factorButtons}>
-                  {[0.25, 0.5, 0.75, 1].map(f => {
-                    const isActive = f === levelFactor;
-                    return (
-                      <TouchableOpacity
-                        key={f}
-                        onPress={() => setLevelFactor(f)}
-                        style={[
-                          styles.factorButton,
-                          { borderColor: primaryColor },
-                          isActive && { backgroundColor: primaryColor },
-                        ]}
-                      >
-                        <ThemedText style={[styles.factorButtonText, isActive && styles.factorButtonTextActive]}>
-                          {f}
-                        </ThemedText>
-                      </TouchableOpacity>
-                    );
-                  })}
+  const renderCompound = ({ item }: { item: CycleCompound }) => (
+    <Card style={styles.compoundCard}>
+      <IconBadge icon={COMPOUND_ICONS[item.type]} color={accent} />
+      <View style={styles.compoundText}>
+        <ThemedText type="defaultSemiBold" numberOfLines={1}>{item.name}</ThemedText>
+        <ThemedText type="caption" tone="muted">
+          {item.amount}{item.amount_unit} {describeFrequency(item.dosing_period)}
+        </ThemedText>
+        <ThemedText type="caption" tone="subtle">
+          {formatDateRange(item.start_date, item.end_date)}
+        </ThemedText>
+      </View>
+      <IconButton
+        icon="trash-can-outline"
+        color={colors.danger}
+        size={36}
+        onPress={() => handleDeleteCompound(item)}
+        accessibilityLabel={`Remove ${item.name}`}
+      />
+    </Card>
+  );
+
+  const renderHeader = () => (
+    !cycle ? null : <View style={styles.headerContent}>
+      <Card style={styles.summaryCard}>
+        <View style={styles.summaryTop}>
+          <View style={styles.summaryDates}>
+            <MaterialCommunityIcons name="calendar-range" size={18} color={colors.mutedText} />
+            <ThemedText type="caption" tone="muted" style={styles.flex}>
+              {formatDateRange(cycle.start_date, cycle.end_date)}
+            </ThemedText>
+          </View>
+          <CycleStatusChip status={getCycleProgress(cycle.start_date, cycle.end_date).status} accent={accent} />
+        </View>
+        <CycleProgressBar startDate={cycle.start_date} endDate={cycle.end_date} accent={accent} />
+      </Card>
+
+      {chartData && (
+        <Card style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+            <ThemedText type="heading">Estimated levels</ThemedText>
+            <ThemedText type="caption" tone="muted">
+              ng/dL · pinch to zoom ({xZoom.toFixed(2)}×)
+            </ThemedText>
+          </View>
+
+          <View style={styles.factorBlock}>
+            <ThemedText type="overline" tone="subtle">Level factor</ThemedText>
+            <SegmentedControl
+              size="sm"
+              accent={accent}
+              options={LEVEL_FACTORS.map(f => ({ value: f, label: `${f}` }))}
+              value={levelFactor}
+              onChange={setLevelFactor}
+            />
+          </View>
+
+          {!!chartSeries?.length && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow}>
+              {chartSeries.map(series => (
+                <View key={series.name} style={[styles.legendItem, { backgroundColor: colors.cardMuted }]}>
+                  <View style={[styles.legendSwatch, { backgroundColor: series.color }]} />
+                  <ThemedText type="caption" numberOfLines={1}>{series.name}</ThemedText>
                 </View>
-              </View>
-              <ThemedText style={[styles.zoomHint, { color: mutedColor }]}>Pinch the chart to zoom the timeline. Current: {xZoom.toFixed(2)}x</ThemedText>
-              {!!chartSeries?.length && (
-                <View style={styles.legendSection}>
-                  <ThemedText style={[styles.legendLabel, { color: mutedColor }]}>Compounds</ThemedText>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow}>
-                    {chartSeries.map(series => (
-                      <View key={series.name} style={[styles.legendItem, { borderColor: withAlpha(primaryColor, 0.16) }]}>
-                        <View style={[styles.legendSwatch, { backgroundColor: series.color }]} />
-                        <ThemedText numberOfLines={1} style={styles.legendText}>{series.name}</ThemedText>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-              <ThemedText style={[styles.yAxisLabel, { color: mutedColor }]}>ng/dL</ThemedText>
-              <HorizontalChartScrollView
-                viewportWidth={chartViewportWidth}
-                contentWidth={chartWidth}
-                yAxis={{ labels: chartData.axis.labels, color: textColor }}
-                onTouchStart={handleChartTouchStart}
-                onTouchMove={handleChartTouchMove}
-                onTouchEnd={clearPinchState}
-                onTouchCancel={clearPinchState}>
-                <LineChart
-                  data={chartData}
-                  width={chartWidth}
-                  height={DEFAULT_CHART_HEIGHT}
-                  chartConfig={{
-                    backgroundColor: cardColor,
-                    backgroundGradientFrom: cardColor,
-                    backgroundGradientTo: cardColor,
-                    decimalPlaces: chartData.axis.decimalPlaces,
-                    color: (opacity = 1) => withAlpha(primaryColor, opacity),
-                    labelColor: () => textColor,
-                    style: {
-                      borderRadius: 16,
-                    },
-                    propsForDots: {
-                      r: "0",
-                    },
-                    propsForBackgroundLines: {
-                        strokeDasharray: "" // Solid lines
-                    }
-                  }}
-                  bezier
-                  fromNumber={chartData.axis.max}
-                  fromZero={chartData.axis.min === 0}
-                  segments={chartData.axis.segments}
-                  style={{
-                    marginVertical: 8,
-                    borderRadius: 16,
-                    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
-                  }}
-                  withDots={false}
-                  withHorizontalLabels={false}
-                  withShadow={false}
-                  withInnerLines={true}
-                  withOuterLines={true}
-                  withVerticalLines={false}
-                />
-              </HorizontalChartScrollView>
-              <ThemedText style={[styles.axisLabel, { color: mutedColor }]}>Date (M/D)</ThemedText>
-            </View>
+              ))}
+            </ScrollView>
           )}
-        </View>
-        <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">Compounds</ThemedText>
-        </View>
+
+          <HorizontalChartScrollView
+            viewportWidth={chartViewportWidth}
+            contentWidth={chartWidth}
+            yAxis={{ labels: chartData.axis.labels, color: colors.subtleText }}
+            onTouchStart={handleChartTouchStart}
+            onTouchMove={handleChartTouchMove}
+            onTouchEnd={clearPinchState}
+            onTouchCancel={clearPinchState}>
+            <LineChart
+              data={chartData}
+              width={chartWidth}
+              height={DEFAULT_CHART_HEIGHT}
+              chartConfig={buildLineChartConfig({ colors, color: accent, decimalPlaces: chartData.axis.decimalPlaces, dotRadius: 0 })}
+              bezier
+              fromNumber={chartData.axis.max}
+              fromZero={chartData.axis.min === 0}
+              segments={chartData.axis.segments}
+              style={styles.chart}
+              withDots={false}
+              withHorizontalLabels={false}
+              withShadow={false}
+              withInnerLines={true}
+              withOuterLines={false}
+              withVerticalLines={false}
+            />
+          </HorizontalChartScrollView>
+        </Card>
+      )}
+
+      {compounds.length > 0 && (
+        <SectionHeader
+          title="Compounds"
+          caption={`${compounds.length} in this cycle`}
+          style={styles.compoundsHeader}
+        />
+      )}
     </View>
   );
 
   if (!cycle) {
     return (
       <ThemedView style={styles.container}>
-        <Header title="Cycle Details" showBack />
+        <Header eyebrow="Cycle" accent={accent} title="Cycle details" showBack />
         <View style={styles.center}>
-          <ThemedText>Loading...</ThemedText>
+          <ActivityIndicator color={accent} />
         </View>
       </ThemedView>
     );
@@ -318,7 +332,7 @@ export default function CycleDetailScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <Header title={cycle.name} showBack />
+      <Header eyebrow="Cycle" accent={accent} title={cycle.name} showBack />
 
       <SectionList
         sections={compoundSections}
@@ -326,24 +340,24 @@ export default function CycleDetailScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={renderHeader}
+        stickySectionHeadersEnabled={false}
         renderSectionHeader={({ section }) => (
-          <ThemedText type="subtitle" style={[styles.groupHeader, { color: mutedColor }]}>
+          <ThemedText type="overline" tone="subtle" style={styles.groupHeader}>
             {section.title}
           </ThemedText>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <ThemedText>No compounds added yet.</ThemedText>
-          </View>
+          <EmptyState
+            icon="flask-outline"
+            accent={accent}
+            title="No compounds yet"
+            message="Add the compounds in this cycle to chart estimated blood levels."
+            action={<Button label="Add compound" icon="plus" color={accent} onPress={addCompound} />}
+          />
         }
       />
 
-      <Pressable
-        style={[styles.fab, { backgroundColor: primaryColor }]}
-        onPress={() => router.push(`/track-cycle/${cycleId}/add-compound`)}
-      >
-        <MaterialCommunityIcons name="plus" size={24} color="white" />
-      </Pressable>
+      {compounds.length > 0 && <Fab label="Add compound" color={accent} onPress={addCompound} />}
     </ThemedView>
   );
 }
@@ -352,159 +366,87 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: {
+    flex: 1,
+  },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   listContent: {
-    padding: 16,
-    gap: 12,
-    paddingBottom: 100, // For FAB
-  },
-  dateContainer: {
-    paddingBottom: 16,
     paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
-  sectionHeader: {
-    marginBottom: 8,
+  headerContent: {
+    gap: 12,
   },
-  chartContainer: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  summaryCard: {
+    gap: 16,
   },
-  chartTitle: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  factorRow: {
-    gap: 10,
-    marginBottom: 8,
-  },
-  factorLabel: {
-    fontSize: 12,
-    opacity: 0.9,
-    textAlign: 'center',
-  },
-  factorButtons: {
+  summaryTop: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryDates: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  factorButton: {
-    borderWidth: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
+  chartCard: {
+    paddingHorizontal: 12,
+    gap: 14,
   },
-  factorButtonText: {
-    fontSize: 12,
+  chartHeader: {
+    gap: 2,
+    paddingHorizontal: 4,
   },
-  factorButtonTextActive: {
-    color: '#FFF',
-  },
-  zoomHint: {
-    fontSize: 12,
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  yAxisLabel: {
-    fontSize: 12,
-    marginTop: 4,
-    marginBottom: 2,
-    textAlign: 'left',
-    alignSelf: 'flex-start',
-    opacity: 0.9,
-  },
-  axisLabel: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 6,
-    opacity: 0.9,
-  },
-  legendSection: {
-    gap: 10,
-    marginBottom: 4,
-  },
-  legendLabel: {
-    fontSize: 12,
-    opacity: 0.9,
+  factorBlock: {
+    gap: 8,
+    paddingHorizontal: 4,
   },
   legendRow: {
-    gap: 10,
-    paddingRight: 12,
+    gap: 8,
+    paddingHorizontal: 4,
   },
   legendItem: {
     alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: Radii.full,
     flexDirection: 'row',
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 12,
   },
   legendSwatch: {
     width: 10,
     height: 10,
-    borderRadius: 999,
+    borderRadius: 5,
   },
-  legendText: {
-    fontSize: 12,
+  chart: {
+    paddingRight: DEFAULT_CHART_SCROLL_PADDING_RIGHT,
   },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  cardContent: {
-    flex: 1,
-    gap: 4,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  detailText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
+  compoundsHeader: {
+    marginTop: 16,
+    marginBottom: 0,
   },
   groupHeader: {
+    marginTop: 12,
     marginBottom: 8,
-    marginTop: 4,
     paddingHorizontal: 4,
-    opacity: 0.9,
+  },
+  compoundCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingRight: 8,
+  },
+  compoundText: {
+    flex: 1,
+    gap: 2,
   },
 });

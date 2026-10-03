@@ -1,187 +1,137 @@
+<div align="center">
+
+<img src="assets/images/dumbell.png" alt="Track My Gains icon" width="80" height="80">
+
 # Track My Gains
 
-Cross‑platform fitness tracker built with Expo and React Native. Log workouts, track weight, diet, and cycles — all from a clean, themed dashboard.
+**Your training, all in one place.**
 
-- Platforms: Android, iOS, Web
-- Router: Expo Router (file‑based)
-- Persistence: SQLite (via `expo-sqlite`)
-- Syncing: Firebase Firestore
-- Theming: Light/Dark with a centralized palette
+Track weight, workouts, meals, and cycles from a themed dashboard. Built with Expo and React Native for Android, iOS, and the web.
 
-Repository: https://github.com/jaggerjack61/TrackMyGains
+![MIT](https://img.shields.io/badge/license-MIT-8980ff)
+![Expo SDK 54](https://img.shields.io/badge/Expo-SDK_54-000020)
+![React Native](https://img.shields.io/badge/built_with-React_Native-61dafb)
+![Android · iOS · Web](https://img.shields.io/badge/platforms-Android_%7C_iOS_%7C_Web-8980ff)
 
-## Quick Start
+[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Development](#development)
 
-1. Install dependencies
+<img src="docs/screenshots/dashboard.png" alt="Track My Gains Android home dashboard with weight summary and cards for lifts, diet, and cycles" width="280">
 
-```bash
-npm install
-```
+</div>
 
-2. Start in interactive mode (choose Android/iOS/Web)
+---
 
-```bash
-npx expo start
-```
-
-Shortcuts:
-
-- Web: `npm run web` (or press `w` in the Expo terminal)
-- Android: `npm run android`
-- iOS: `npm run ios` (requires macOS with Xcode)
-
-Linting:
-
-```bash
-npm run lint
-```
-
-## Alternatively
-
-- You can install the apk in the repo directly onto your device
-
-## Project Structure
-
-```
-TrackMyGains/
-├─ app/
-│  ├─ (tabs)/                # Tab navigator
-│  │  ├─ index.tsx           # Landing page (cards dashboard)
-│  │  └─ settings.tsx        # Settings screen
-│  ├─ track-weight/          # Track weight flow
-│  ├─ track-diet/            # Track diet flow
-│  ├─ track-workouts/        # Routines/workouts/exercises
-│  └─ track-cycle/           # Cycles and compounds
-├─ components/               # Reusable UI and themed components
-│  ├─ DashboardCard.tsx
-│  ├─ Header.tsx            # Screen header, avatar, profile sheet
-│  ├─ ui/                   # Design-system components
-│  ├─ themed-text.tsx
-│  └─ themed-view.tsx
-├─ hooks/                    # Theme utilities and color scheme
-│  ├─ use-color-scheme.ts
-│  ├─ use-theme.ts
-│  └─ use-theme-color.ts
-├─ services/                 # Data access (SQLite adapters)
-│  ├─ database.native.ts
-│  └─ database.web.ts
-├─ constants/
-│  └─ theme.ts               # Design tokens (colors, accents, radii, elevation)
-└─ app.json                  # Expo config
-```
-
-## Theming Guide
-
-Design tokens live in [`constants/theme.ts`](constants/theme.ts):
-
-- `Colors` — semantic light/dark palette (`background`, `card`, `cardMuted`, `border`, `text`, `mutedText`, `subtleText`, `tint`, `onTint`, `danger`, …)
-- `Accents` — one identity colour per section: `weight`, `lifts`, `diet`, `cycle`
-- `Macros` — protein / carbs / fats colours used by the diet screens
-- `Radii`, `Spacing`, `getElevation()` — shape and depth
-- `withAlpha()`, `readableTextOn()` — colour helpers
-
-Read them in components with `useTheme()` (returns `{ scheme, colors, accents, macros }`).
-
-Shared UI lives in [`components/ui/`](components/ui/): `Card`, `Button`, `IconButton`, `Fab`, `Sheet` (bottom sheet used for every add/edit form), `TextField`, `DateField`, `SegmentedControl`, `ListRow`, `Stat`, `SectionHeader`, `EmptyState`, `IconBadge`, and `buildLineChartConfig()` for charts. `ThemedText` supports `type` (`title`, `heading`, `display`, `caption`, `overline`, …) and `tone` (`muted`, `subtle`, `tint`, `danger`, …).
-
-Tips:
-
-- Screens start with `ThemedView` + `Header` (large title, optional `eyebrow` tinted with the section accent).
-- Pass the section accent (`accents.lifts`, etc.) to `Fab`, `Button color`, charts and icon badges so each area keeps its identity.
+Keep your daily logs close and your progress easy to see. Track My Gains organizes training into routines, workouts, and exercises; keeps weight and nutrition history; and supports account-based Firestore sync alongside local storage.
 
 ## Features
 
-- Home dashboard with a latest weigh-in summary and section cards
-- Track weight, workouts, diet, and cycles
-- Light/Dark mode with a shared design system
-- SQLite persistence via `expo-sqlite`
-- Syncing: Firebase Firestore
+| Feature | What it does |
+|---|---|
+| **A daily starting point** | A home dashboard with the latest weigh-in and quick access to weight, lifts, diet, and cycles. |
+| **Weight history** | Record weigh-ins, see trends, and review changes over time. |
+| **Structured training** | Build routines, workouts, and exercises; log sets and reorder your training lists. |
+| **Meals and macros** | Organize diets and daily meal logs with protein, carbohydrate, and fat tracking. |
+| **Cycle tracking** | Record cycles and their compounds, with views of logged details and levels. |
+| **Local data and sync** | SQLite on native platforms, a browser-storage adapter on the web, and Firestore sync for signed-in accounts. |
+| **A consistent interface** | Light and dark palettes, shared sheets and controls, and a distinct accent for each tracking area. |
 
-## Scripts
+## Screenshots
 
-```bash
-npm start          # Expo CLI (interactive)
-npm run web        # Start web build on localhost
-npm run android    # Start Android (emulator or device)
-npm run ios        # Start iOS (simulator; macOS only)
-npm run lint       # ESLint checks
-npm test           # Run the test suite
-npm run typecheck  # TypeScript checks
+<table align="center" width="560">
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="docs/screenshots/weight.png" alt="Android weight tracking screen with trend chart and weigh-in history" width="250"><br><sub>Weight trends and history</sub></td>
+    <td width="50%" align="center" valign="top"><img src="docs/screenshots/routines.png" alt="Android routines screen with saved training plans" width="250"><br><sub>Organize your training routines</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top"><img src="docs/screenshots/workouts.png" alt="Workouts in an Android training routine" width="250"><br><sub>Build workouts inside each routine</sub></td>
+    <td width="50%" align="center" valign="top"><img src="docs/screenshots/diet.png" alt="Android diet history showing a calorie chart and daily macro logs" width="250"><br><sub>Keep nutrition logs alongside training</sub></td>
+  </tr>
+</table>
+
+Screenshots were captured from the Android app on a connected device.
+
+## Quick start
+
+**Requirements:** Node.js 20+ and npm. For native development, use an Android device/emulator or an iOS simulator on macOS with Xcode.
+
+```sh
+npm ci
+npm start
 ```
 
-## EAS Build Commands
+Use the Expo terminal shortcuts to choose Android, iOS, or web, or start a target directly:
 
-### Build APK (Returns Build ID)
+```sh
+npm run android
+```
 
-Starts an EAS Android build and prints the Build ID to stdout.
+```sh
+npm run ios
+```
 
-```bash
-# Default: preview profile
+```sh
+npm run web
+```
+
+Native features such as the Android APK downloader require a development or preview build; Expo Go does not provide every native module used by this project.
+
+### Install the Android preview
+
+The repository contains [TrackMyGains-preview-20260928.apk](TrackMyGains-preview-20260928.apk). Download it onto your Android device and open it to install, or use a connected device:
+
+```sh
+adb install -r TrackMyGains-preview-20260928.apk
+```
+
+## Usage
+
+- **Weight:** record a weigh-in and review the history and chart.
+- **Lifts:** create a routine, add workouts and exercises, then record your sets. Press and hold supported lists to reorder them.
+- **Diet:** organize nutrition plans and daily meal logs.
+- **Cycle:** manage cycles and their compounds.
+- **Settings and profile:** manage the app's available preferences and account/sync controls.
+
+## Builds and configuration
+
+Android uses the package name `com.jaggerjack61.TrackMyGains`. Keep it consistent with the Android entry in `google-services.json`. Firebase setup lives in `services/firebase.ts`; Expo configuration is in [app.json](app.json) and EAS profiles are in [eas.json](eas.json).
+
+Start an EAS preview build, then download it using the returned build ID:
+
+```sh
 npm run build-apk
-
-# Custom profile
-npm run build-apk -- --profile "production"
+npm run download-apk -- --build-id "<build-id>"
 ```
 
-### Download APK (Polls & Downloads)
+For another build profile or download location:
 
-Polls an EAS build every 5 minutes and downloads the APK once finished.
-
-```bash
-# Basic usage (uses default output path)
-npm run download-apk -- --build-id "<your-build-id>"
-
-# Specify output path
-npm run download-apk -- --build-id "<your-build-id>" --output-path "releases/TrackMyGains-preview-20260731.apk"
-
-# Change poll interval (default: 5 minutes)
-npm run download-apk -- --build-id "<your-build-id>" --poll-interval-minutes 2
+```sh
+npm run build-apk -- --profile production
+npm run download-apk -- --build-id "<build-id>" --output-path "releases/TrackMyGains-preview.apk"
 ```
 
-### Full Pipeline (Build + Download)
+The build helper writes a date to `expo.extra.apkVersionDate`. The download helper uses that metadata for dated APK filenames; the Android update checker compares the installed build date with APKs in the repository's `main` branch.
 
-```bash
-# Linux and macOS
-build_id=$(npm run build-apk --silent)
-npm run download-apk -- --build-id "$build_id"
+## Development
+
+```sh
+npm run lint
+npm run typecheck
+npm test
 ```
 
-```powershell
-# Windows PowerShell
-$buildId = npm run build-apk --silent
-npm run download-apk -- --build-id $buildId
-```
+| Path | Contents |
+|---|---|
+| `app/` | Expo Router screens and tracking workflows |
+| `components/ui/` | Cards, buttons, fields, sheets, and chart helpers |
+| `constants/theme.ts` | Light/dark palettes, section accents, spacing, and radii |
+| `hooks/use-theme.ts` | Shared theme access |
+| `services/database.native.ts` | Native SQLite data adapter |
+| `services/database.web.ts` | Browser-storage data adapter |
+| `services/firebase.ts` | Authentication and Firestore sync |
+| `scripts/` | EAS build and APK download helpers |
 
-The scripts run on Windows, Linux, and macOS with Node.js. Always use `--` before script arguments so npm forwards them correctly.
-
-### APK Naming Convention
-
-Release APKs follow the pattern `TrackMyGains-preview-YYYYMMDD.apk` (e.g., `TrackMyGains-preview-20260523.apk`). The build script writes the same date into `expo.extra.apkVersionDate`, and the download script reuses it for the artifact name. The app's update checker compares that installed-build date with APKs in the root of the `main` branch on GitHub.
-
-## Requirements
-
-- Node.js 20+ and npm
-- For Android: Android Studio (emulator) or a device with Expo Go
-- For iOS: Xcode (simulator) or a device with Expo Go (macOS)
-
-## Contributing
-
-1. Create a new branch from `main`.
-2. Make changes and run `npm run lint`.
-3. Open a PR against `main`.
+Use `useTheme()` for the shared palette and section accents. Reuse the existing `components/ui/` controls to keep new screens consistent with the rest of the app.
 
 ## License
 
-This project currently doesn’t include a license file. If you intend to open‑source it, consider adding an MIT or Apache‑2.0 license.
-
-## Build Configuration
-
-### Android Package Name
-
-The Android package name is configured as `com.jaggerjack61.TrackMyGains`.
-**Important:** This must match the package name in `google-services.json` exactly (case-sensitive).
-
-### Dependencies
-
-- **@react-native-async-storage/async-storage**: Uses Expo SDK 54's supported `2.2.0` release.
-- **Dependency checks**: `npx expo install --check`, Expo Doctor, and `npm audit` should all pass cleanly.
+[MIT](LICENSE).

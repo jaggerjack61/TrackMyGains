@@ -1,83 +1,32 @@
 # Project State
 
-- Date: 2026-09-28
+- Date: 2026-11-16
 - Project: TrackMyGains (Expo Router + React Native + TypeScript)
-- Current focus: UI modernization (design system) on top of sync/cycle robustness work
+- Current focus: UI modernization and sync/cycle robustness; commit attribution cleanup was requested.
 
-## Stack + Architecture Snapshot
-- UI: React Native + Expo Router, TypeScript, StyleSheet (no Tailwind)
-- Theming: tokens in `constants/theme.ts` (Colors, Accents, Macros, Radii, getElevation) read via `hooks/use-theme.ts`
-- UI kit: `components/ui/` (Card, Button/IconButton, Fab, Sheet, TextField, DateField, SegmentedControl, ListRow, Stat, EmptyState, chart-theme)
-- Auth: Firebase Auth, root layout owns the auth state guard
-- Persistence: SQLite via `expo-sqlite` + Firestore sync
-- Updater: Android-only, checks `main` branch root for `TrackMyGains-preview-YYYYMMDD.apk`
+## Stack and Architecture
+- UI: React Native + Expo Router + TypeScript, StyleSheet.
+- Theme tokens: `constants/theme.ts`, consumed through `hooks/use-theme.ts`.
+- Shared UI: `components/ui/` (cards, buttons, sheets, fields, charts, lists, stats, empty states).
+- Auth: Firebase Auth; root layout owns route guards.
+- Persistence: SQLite (`expo-sqlite`) and Firestore synchronization.
+- Android updater checks root of `main` for `TrackMyGains-preview-YYYYMMDD.apk`.
 
-## Implemented in This Pass
-- Root layout now uses Expo Router `Stack.Protected` guards, removing `initialRouteName` and `unstable_settings.anchor` so authenticated routes cannot leave login beneath the dashboard.
-- Root protected routes use concrete Expo Router screen names for leaf routes (`track-diet/index`, `track-weight/index`, `track-workouts/index`, etc.) to avoid layout-child warnings.
-- Auth screen no longer subscribes to `onAuthStateChanged` or imperatively `router.replace`; the root guard handles all auth→app transitions.
-- Tab screens (`index`, `settings`) no longer call `router.replace("/auth")` on logout; root guard routes to auth after `signOut`.
-- Added local-only `apks` table in SQLite with `version_date` column (not synced to Firestore).
-- Added downloaded-APK metadata helpers in all database layers.
-- Native SQLite helper operations are serialized through a queue to avoid overlapping update-check and sync queries releasing shared native statement handles.
-- Pure APK update helpers in `services/app-update-metadata.ts`: filename regex, date parsing, latest selection, GitHub API response parsing.
-- `services/app-updates.ts`: startup/manual update check prompts before downloading, uses Android DownloadManager via `react-native-blob-util`, then prompts again before launching the APK installer.
-- APK updater now detects Expo Go (`ExecutionEnvironment.StoreClient`) before native updater imports; startup is quiet there and manual checks report that a preview/development build is required.
-- ProfileMenu gains "Check for Updates" button (Android only, hidden on other platforms).
-- Added `expo-notifications`, `expo-intent-launcher`, and `react-native-blob-util`; `app.json` has install and notification permissions.
-- All 100 service tests pass; lint, `tsc --noEmit`, Expo Doctor, dependency checks, and Android/web bundle exports are clean.
+## Implemented Work
+- Auth navigation uses `Stack.Protected`; root guard handles login/logout transitions.
+- Android APK updater, Expo Go detection, APK metadata helpers, serialized native SQLite operations, profile/settings update check.
+- SQLite reliability/schema changes; stable sync identities, outbox/tombstones, incremental sync, conflict preservation and restore/dismiss UI.
+- `useSyncRefresh` reloads the relevant list/detail screens on focus and after sync.
+- UI modernization replaced neumorphism/parallax with theme tokens, shared components, section accents, sheets/date fields, refreshed home/settings and tracking screens.
+- Cycle validation, duration-preserving date shifts, delete confirmations, progress/status components.
+- Historically verified: TypeScript, lint, 111 tests, web static export; device visual verification was still outstanding as of 2026-09-28.
 
 ## Build Notes
-- APK naming convention: `TrackMyGains-preview-YYYYMMDD.apk` in repo root.
-- The update source is the repo root on `main`, not GitHub Releases.
-- Requires a rebuilt APK to validate DownloadManager/install intents (cannot test in Expo Go).
+- APK names: `TrackMyGains-preview-YYYYMMDD.apk`; source is repository root on `main`, not GitHub Releases.
+- Native download/install behavior requires a rebuilt Android preview/development build, not Expo Go.
 
-## 2026-07-10 Reliability Pass
-- Cycle level calculation now uses a linear recurrence and rejects non-integer dosing periods, preventing fractional-period render freezes.
-- Sync snapshots use fixed-count all-table reads instead of hierarchical N+1 database traversal.
-- Firestore collections are fetched concurrently; any failed read aborts reconciliation instead of being treated as an empty collection.
-- Auto-sync polling pauses while the app is inactive.
-- Native initialization waits for in-flight schema setup, uses schema-aware migrations, adds hot-query indexes, and uses one-statement SQLite upserts.
-- Web records now receive sync timestamps, support bulk pull upserts, and cascade routine/workout deletion through exercise logs.
-- Platform-specific compound reference IDs are not synced; pulled cycle compounds resolve references by compound name.
-
-## 2026-07-31 Sync and Performance Pass
-- Synced records use stable device-independent IDs and stable parent references instead of local SQLite IDs.
-- Deletions propagate through retained tombstones, including descendant records created concurrently beneath a deleted parent.
-- Local outbox entries drive incremental sync and are cleared conditionally so a newer edit cannot be discarded by an older in-flight sync.
-- Auto-sync runs every five minutes while active and reads Firestore changes by cursor instead of scanning every collection every minute.
-- Diet dates use local calendar keys, one log is enforced per diet/day, history refreshes on focus, and nutrition totals use one aggregate query.
-- The updater compares remote APKs with the installed build date and can reinstall an already-downloaded pending update without downloading it again.
-- Expo dependencies are aligned, AsyncStorage uses the supported SDK version, and transitive security patches leave `npm audit` at zero findings.
-- Font and icon imports use direct subpaths, reducing the Android export from 75 bundled assets to 32.
-
-## 2026-08-03 Audit Findings (investigation only, no fixes applied)
-- Data loss risk: on sync conflict, remote wins when its client timestamp is >= local (equal-time tie-break is deliberate, codified in sync-reconciliation.test.ts); pull overwrites the pending outbox state leaves no local record to re-queue.
-- Stale screens: mount-only load (no catch) on track-weight, all track-workouts/*, track-diet/index list, and meal-day route; only track-diet/[dietId] history + track-cycle use useFocusEffect. No graceful retry hooks.
-- Critical modules firebase.ts/database.native.ts have only source-text tests (*-source.test.ts readFileSync + not.toContain), no behavioral coverage.
-- Minor: APK updater lacks status/size/hash verification; UTC-instant vs local-date-key mixing; unthrottled LIKE query on meal name input; hardcoded colors bypass theme; expo-linking/expo-system-ui and expo-notifications config drift.
-
-## 2026-08-03 Conflict & Staleness Fix Pass
-- Sync conflicts now preserve the losing local edit: `reconcileCollection` returns `conflictLosers`, and `bulkInsertOrUpdate` (native + web) writes them to a new local-only `sync_conflicts` table with metadata to restore or dismiss.
-- Added `services/sync-events.ts` — `bidirectionalSync` notifies subscribers on success; new `useSyncRefresh` hook reloads screen data on focus AND on sync completion (with unhandled-rejection guarding).
-- All 10 list/detail screens (track-weight, track-workouts/*, track-diet/*, track-cycle/*) now use `useSyncRefresh` instead of mount-only `useEffect` or bare `useFocusEffect`.
-- New behavioral tests: conflictLosers reporting in sync-reconciliation.test.ts; loser preservation via bulkInsertOrUpdate in database.web.test.ts. 109 tests pass; lint + tsc clean.
-
-## 2026-08-03 Sync Conflicts UI Pass
-- Settings now shows a "Sync Conflicts" section when conflicts exist (count badge, collection label, lost-at time, sync id, payload summary). Each conflict offers Restore (brings back the losing edit) and Dismiss.
-- New DB APIs: `restoreSyncConflict` (native + web, returns false on FK failure e.g. deleted parent) and `deleteSyncConflict`; both declared in database.d.ts.
-- Settings uses `useSyncRefresh` so the list appears/updates after any sync completes.
-- New web tests: restore re-queues upsert + bumps timestamp; dismiss leaves the winning record untouched. 111 tests pass; lint + tsc clean.
-
-## 2026-09-28 UI Modernization Pass
-- Replaced neumorphic look (deleted `soft-ui.tsx`, `neumorphism.ts`, `parallax-scroll-view.tsx`, `icon-symbol*`) with flat cards, hairline borders, soft light-mode shadows, new light/dark palettes, and icon badges.
-- Section accents: weight sky, lifts orange, diet green, cycle pink — used for header eyebrow, FAB, charts, icon badges, primary buttons.
-- All add/edit modals are bottom `Sheet`s; all date inputs use `DateField` (Android dialog, iOS inline calendar). Diet "add day" keeps direct Android dialog; iOS uses a sheet.
-- Home: greeting + avatar (opens profile sheet) + latest weigh-in hero + 2x2 section cards. Settings: grouped Account/Data rows, conflicts cards, version footer (no drawer).
-- New screen polish: weight summary + per-entry deltas; exercise best/last/sessions + prediction banner; diet macro split bar; cycle status chips, progress bars, duration/frequency presets, compound progress.
-- Behavior changes: cycle delete and compound removal now confirm; add-cycle validates dates and shifting start date keeps duration.
-- Chart inset constant now accounts for chart cards (`DEFAULT_CHART_HORIZONTAL_INSET = 58`).
-- Verified: tsc, lint, 111 tests, web static export. Not yet visually verified on a device.
-
-## Current Request
-- User attempted to remove the repo collaborator/user named "claude". No GitHub write API is available in this session; repository collaborator removal requires repo admin access and a direct GitHub permissions action (GitHub UI or `DELETE /repos/{owner}/{repo}/collaborators/{username}` with an admin token).
+## 2026-11-16 Commit Attribution Request
+- User clarified they want Claude removed from commit attribution, rather than removed as a repository collaborator.
+- Search found Claude co-author attribution in commit `ce140ffb0bfdeefcfb158b123ef3f6232c163abc` (UI redesign, 2026-09-28): `Co-Authored-By: Claude <noreply@anthropic.com>`.
+- Commit's recorded author and committer are Samuel Jarai; the contributor list contains only `jaggerjack61`. The GitHub user `claude` did not author a commit in the API query.
+- Attribution cleanup requires rewriting the commit message and descendants, then updating the remote branch. This session has no git history rewrite/force-push tool, so no commit history was changed.
